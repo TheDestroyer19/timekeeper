@@ -1,3 +1,5 @@
+use std::thread;
+
 use chrono::{DateTime, Local, Duration};
 use eframe::{egui, epi};
 
@@ -23,6 +25,8 @@ pub struct TimeKeeperApp {
     time_format: String,
     blocks: Vec<Block>,
     current: Option<PartialBlock>,
+
+    //app management stuff
 }
 
 impl Default for TimeKeeperApp {
@@ -44,7 +48,7 @@ impl epi::App for TimeKeeperApp {
     fn setup(
         &mut self,
         _ctx: &egui::Context,
-        _frame: &epi::Frame,
+        frame: &epi::Frame,
         _storage: Option<&dyn epi::Storage>,
     ) {
         // Load previous app state (if any).
@@ -53,6 +57,10 @@ impl epi::App for TimeKeeperApp {
         if let Some(storage) = _storage {
             *self = epi::get_value(storage, epi::APP_KEY).unwrap_or_default()
         }
+
+        //start up bg thread
+        let frame = frame.clone();
+        thread::spawn(|| bg_timer(frame));
     }
 
     /// Called by the frame work to save state before shutdown.
@@ -118,5 +126,15 @@ fn fmt_duration(mut duration: Duration) -> String {
         format!("{}h {}m", hours, minutes)
     } else {
         format!("{}m {}s", minutes, seconds)
+    }
+}
+
+/// thread to update the gui regularly.
+/// This could be improved to only do it while the timer is active and the window is visible
+fn bg_timer(frame: epi::Frame) {
+    let one_second = Duration::seconds(1).to_std().expect("1 second should be in range");
+    loop {
+        thread::sleep(one_second);
+        frame.request_repaint();
     }
 }
