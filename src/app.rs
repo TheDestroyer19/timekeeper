@@ -109,9 +109,9 @@ impl epi::App for TimeKeeperApp {
                 let mut to_delete = None;
 
                 for (index, block) in self.blocks.iter().enumerate() {
-                    ui.label(format!("{}", block.start.format(&self.time_format)));
-                    ui.label(format!("{}", block.end.format(&self.time_format)));
-                    ui.label(format!("{}", fmt_duration(block.end - block.start)));
+                    ui.label(block.start.format(&self.time_format).to_string());
+                    ui.label(block.end.format(&self.time_format).to_string());
+                    ui.label(fmt_duration(block.end - block.start));
 
                     if ui.button("X").clicked() {
                         to_delete = Some(index);
