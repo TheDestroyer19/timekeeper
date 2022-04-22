@@ -18,23 +18,36 @@ struct PartialBlock {
     pub start: DateTime<Local>,
 }
 
+#[derive(PartialEq, Eq)]
+enum AppScreen {
+    Time,
+    Settings,
+}
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct TimeKeeperApp {
+    date_format: String,
     time_format: String,
+    datetime_format: String,
     blocks: Vec<Block>,
     current: Option<PartialBlock>,
 
     //app management stuff
+    #[serde(skip)]
+    screen: AppScreen,
 }
 
 impl Default for TimeKeeperApp {
     fn default() -> Self {
         Self {
-            time_format: "%m-%d %H:%M".into(),
+            date_format: "%y-%m-%d".into(),
+            time_format: "%H:%M".into(),
+            datetime_format: "%m-%d %H:%M".into(),
             blocks: Vec::new(),
             current: None,
+            screen: AppScreen::Time,
         }
     }
 }
@@ -69,12 +82,38 @@ impl epi::App for TimeKeeperApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &epi::Frame) {
+        egui::TopBottomPanel::top("tabs").show(ctx, |ui| {
+            self.draw_tabs(ui);
+        });
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            match self.screen {
+                AppScreen::Time => self.draw_times(ui),
+                AppScreen::Settings => self.draw_settings(ui),
+            }
+        });
+
         egui::TopBottomPanel::bottom("current").show(ctx, |ui| {
+            self.draw_stopwatch(ui);
+        });
+    }
+}
+
+impl TimeKeeperApp {
+    fn draw_tabs(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut self.screen, AppScreen::Time, "Time");
+            ui.selectable_value(&mut self.screen, AppScreen::Settings, "Settings");
+        });
+    }
+
+    fn draw_stopwatch(&mut self, ui: &mut egui::Ui) {
+        ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
             if let Some(block) = &mut self.current {
                 let duration = Local::now() - block.start;
-
+    
                 ui.label(format!("{} - now ({})", block.start.format(&self.time_format), fmt_duration(duration)));
-
+    
                 if ui.button("Stop").clicked() {
                     let PartialBlock { start } = self.current.take().unwrap();
                     let block = Block {
@@ -91,36 +130,54 @@ impl epi::App for TimeKeeperApp {
                 }
             }
         });
+    }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            egui::Grid::new("the-grid")
-                .num_columns(4)
-                .striped(true)
-                .show(ui, |ui| {
-                ui.label("Start");
-                ui.label("End");
-                ui.label("Duration");
+    fn draw_times(&mut self, ui: &mut egui::Ui) {
+        egui::Grid::new("the-grid")
+            .num_columns(4)
+            .striped(true)
+            .show(ui, |ui| {
+            ui.label("Start");
+            ui.label("End");
+            ui.label("Duration");
+            ui.end_row();
+
+            let mut to_delete = None;
+
+            for (index, block) in self.blocks.iter().enumerate() {
+                ui.label(block.start.format(&self.time_format).to_string());
+                ui.label(block.end.format(&self.time_format).to_string());
+                ui.label(fmt_duration(block.end - block.start));
+
+                if ui.button("X").clicked() {
+                    to_delete = Some(index);
+                }
+
+                ui.end_row();
+            }
+
+            if let Some(index) = to_delete {
+                self.blocks.remove(index);
+            }
+        });
+    }
+
+    fn draw_settings(&mut self, ui: &mut egui::Ui) {
+        egui::Grid::new("settings-grid")
+            .num_columns(2)
+            .show(ui, |ui| {
+                ui.label("Date Format:");
+                ui.text_edit_singleline(&mut self.date_format);
                 ui.end_row();
 
-                let mut to_delete = None;
+                ui.label("Time Format:");
+                ui.text_edit_singleline(&mut self.time_format);
+                ui.end_row();
 
-                for (index, block) in self.blocks.iter().enumerate() {
-                    ui.label(block.start.format(&self.time_format).to_string());
-                    ui.label(block.end.format(&self.time_format).to_string());
-                    ui.label(fmt_duration(block.end - block.start));
-
-                    if ui.button("X").clicked() {
-                        to_delete = Some(index);
-                    }
-
-                    ui.end_row();
-                }
-
-                if let Some(index) = to_delete {
-                    self.blocks.remove(index);
-                }
+                ui.label("Date/Time Format:");
+                ui.text_edit_singleline(&mut self.datetime_format);
+                ui.end_row();
             });
-        });
     }
 }
 
