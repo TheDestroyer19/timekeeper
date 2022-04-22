@@ -4,7 +4,7 @@ use chrono::{DateTime, Local, Duration};
 use eframe::{egui, epi};
 
 /// A block of time
-#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
+#[derive(serde::Deserialize, serde::Serialize)]
 struct Block {
     //pub tag: String,
     pub start: DateTime<Local>,
@@ -12,15 +12,15 @@ struct Block {
 }
 
 /// A block of time that is still being tracked
-#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
+#[derive(serde::Deserialize, serde::Serialize)]
 struct PartialBlock {
     //pub tag: String,
     pub start: DateTime<Local>,
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
-#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "persistence", serde(default))] // if we add new fields, give them default values when deserializing old state
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct TimeKeeperApp {
     time_format: String,
     blocks: Vec<Block>,
@@ -52,8 +52,6 @@ impl epi::App for TimeKeeperApp {
         _storage: Option<&dyn epi::Storage>,
     ) {
         // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
-        #[cfg(feature = "persistence")]
         if let Some(storage) = _storage {
             *self = epi::get_value(storage, epi::APP_KEY).unwrap_or_default()
         }
@@ -64,8 +62,6 @@ impl epi::App for TimeKeeperApp {
     }
 
     /// Called by the frame work to save state before shutdown.
-    /// Note that you must enable the `persistence` feature for this to work.
-    #[cfg(feature = "persistence")]
     fn save(&mut self, storage: &mut dyn epi::Storage) {
         epi::set_value(storage, epi::APP_KEY, self);
     }

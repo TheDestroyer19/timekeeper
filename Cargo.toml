@@ -16,14 +16,10 @@ path = "src/main.rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-chrono = "0.4.19"
-eframe = "0.17.0" # Gives us egui, epi and web+native backends
+chrono = { version = "0.4.19", features = ["serde"] } # For time formatting
+eframe = { version = "0.17.0", features = ["persistence"] } # Gives us egui, epi and web+native backends
 
-serde = { version = "1", features = ["derive"], optional = true }
-
-[features]
-default = ["persistence"]
-persistence = ["eframe/persistence", "chrono/serde", "serde"] # Enable if you want to persist app state on shutdown
+serde = { version = "1", features = ["derive"] }
 
 [profile.release]
 opt-level = 2 # fast and small wasm
