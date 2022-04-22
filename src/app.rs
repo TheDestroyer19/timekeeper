@@ -97,17 +97,31 @@ impl epi::App for TimeKeeperApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            egui::Grid::new("the-grid").num_columns(3).show(ui, |ui| {
+            egui::Grid::new("the-grid")
+                .num_columns(4)
+                .striped(true)
+                .show(ui, |ui| {
                 ui.label("Start");
                 ui.label("End");
                 ui.label("Duration");
                 ui.end_row();
 
-                for block in self.blocks.iter() {
+                let mut to_delete = None;
+
+                for (index, block) in self.blocks.iter().enumerate() {
                     ui.label(format!("{}", block.start.format(&self.time_format)));
                     ui.label(format!("{}", block.end.format(&self.time_format)));
                     ui.label(format!("{}", fmt_duration(block.end - block.start)));
+
+                    if ui.button("X").clicked() {
+                        to_delete = Some(index);
+                    }
+
                     ui.end_row();
+                }
+
+                if let Some(index) = to_delete {
+                    self.blocks.remove(index);
                 }
             });
         });
