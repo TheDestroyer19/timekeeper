@@ -86,14 +86,14 @@ impl epi::App for TimeKeeperApp {
         egui::TopBottomPanel::top("tabs").show(ctx, |ui| {
             self.draw_tabs(ui);
         });
+        
+        egui::TopBottomPanel::bottom("stopwatch").show(ctx, |ui| {
+            self.draw_stopwatch(ui);
+        });
 
         egui::CentralPanel::default().show(ctx, |ui| match self.screen {
             AppScreen::Time => self.draw_times(ui),
             AppScreen::Settings => self.draw_settings(ui),
-        });
-
-        egui::TopBottomPanel::bottom("current").show(ctx, |ui| {
-            self.draw_stopwatch(ui);
         });
     }
 }
@@ -110,6 +110,7 @@ impl TimeKeeperApp {
         ui.with_layout(
             egui::Layout::top_down_justified(egui::Align::Center),
             |ui| {
+                
                 if let Some(block) = &mut self.current {
                     let duration = Local::now() - block.start;
 
@@ -127,12 +128,10 @@ impl TimeKeeperApp {
                         };
                         self.blocks.push(block);
                     }
-                } else {
-                    if ui.button(RichText::new("Start").size(20.0)).clicked() {
-                        self.current = Some(PartialBlock {
-                            start: Local::now(),
-                        })
-                    }
+                } else if ui.button(RichText::new("Start").size(20.0)).clicked() {
+                    self.current = Some(PartialBlock {
+                        start: Local::now(),
+                    })
                 }
             },
         );
