@@ -1,12 +1,11 @@
-use std::time::{SystemTime, Duration};
-
+use chrono::{DateTime, Local, Duration};
 use eframe::{egui, epi};
 
 /// A block of time
 #[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
 struct Block {
     //pub tag: String,
-    pub start: SystemTime,
+    pub start: DateTime<Local>,
     pub length: Duration,
 }
 
@@ -14,13 +13,14 @@ struct Block {
 #[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
 struct PartialBlock {
     //pub tag: String,
-    pub start: SystemTime,
+    pub start: DateTime<Local>,
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "persistence", serde(default))] // if we add new fields, give them default values when deserializing old state
 pub struct TimeKeeperApp {
+    time_format: String,
     blocks: Vec<Block>,
     current: Option<PartialBlock>,
 }
@@ -28,6 +28,7 @@ pub struct TimeKeeperApp {
 impl Default for TimeKeeperApp {
     fn default() -> Self {
         Self {
+            time_format: "%m-%d %H:%M".into(),
             blocks: Vec::new(),
             current: None,
         }
@@ -63,12 +64,12 @@ impl epi::App for TimeKeeperApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
-    fn update(&mut self, ctx: &egui::Context, frame: &epi::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &epi::Frame) {
         egui::TopBottomPanel::bottom("current").show(ctx, |ui| {
             if let Some(block) = &mut self.current {
-                let duration = block.start.elapsed().unwrap_or(Duration::ZERO);
+                let duration = Local::now() - block.start;
 
-                ui.label(format!("{:?} - now ({:?})", block.start, duration));
+                ui.label(format!("{} - now ({})", block.start.format(&self.time_format), duration));
 
                 if ui.button("Stop").clicked() {
                     let PartialBlock { start } = self.current.take().unwrap();
@@ -80,9 +81,8 @@ impl epi::App for TimeKeeperApp {
                 }
             } else {
                 if ui.button("Start").clicked() {
-                    let now = SystemTime::now();
                     self.current = Some(PartialBlock {
-                        start: now,
+                        start: Local::now(),
                     })
                 }
             }
@@ -96,9 +96,9 @@ impl epi::App for TimeKeeperApp {
                 ui.end_row();
 
                 for block in self.blocks.iter() {
-                    ui.label(format!("{:?}", block.start));
-                    ui.label(format!("{:?}", block.start + block.length));
-                    ui.label(format!("{:?}", block.length));
+                    ui.label(format!("{}", block.start.format(&self.time_format)));
+                    ui.label(format!("{}", (block.start + block.length).format(&self.time_format)));
+                    ui.label(format!("{}", block.length));
                     ui.end_row();
                 }
             });
