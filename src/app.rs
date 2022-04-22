@@ -1,30 +1,42 @@
+use std::time::{SystemTime, Duration};
+
 use eframe::{egui, epi};
+
+/// A block of time
+#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
+struct Block {
+    //pub tag: String,
+    pub start: SystemTime,
+    pub length: Duration,
+}
+
+/// A block of time that is still being tracked
+#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
+struct PartialBlock {
+    //pub tag: String,
+    pub start: SystemTime,
+}
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "persistence", serde(default))] // if we add new fields, give them default values when deserializing old state
-pub struct TemplateApp {
-    // Example stuff:
-    label: String,
-
-    // this how you opt-out of serialization of a member
-    #[cfg_attr(feature = "persistence", serde(skip))]
-    value: f32,
+pub struct TimeKeeperApp {
+    blocks: Vec<Block>,
+    current: Option<PartialBlock>,
 }
 
-impl Default for TemplateApp {
+impl Default for TimeKeeperApp {
     fn default() -> Self {
         Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 2.7,
+            blocks: Vec::new(),
+            current: None,
         }
     }
 }
 
-impl epi::App for TemplateApp {
+impl epi::App for TimeKeeperApp {
     fn name(&self) -> &str {
-        "eframe template"
+        "TimeKeeper"
     }
 
     /// Called once before the first frame.
@@ -52,67 +64,44 @@ impl epi::App for TemplateApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, frame: &epi::Frame) {
-        let Self { label, value } = self;
+        egui::TopBottomPanel::bottom("current").show(ctx, |ui| {
+            if let Some(block) = &mut self.current {
+                let duration = block.start.elapsed().unwrap_or(Duration::ZERO);
 
-        // Examples of how to create different panels and windows.
-        // Pick whichever suits you.
-        // Tip: a good default choice is to just keep the `CentralPanel`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
+                ui.label(format!("{:?} - now ({:?})", block.start, duration));
 
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-            egui::menu::bar(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("Quit").clicked() {
-                        frame.quit();
-                    }
-                });
-            });
-        });
-
-        egui::SidePanel::left("side_panel").show(ctx, |ui| {
-            ui.heading("Side Panel");
-
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(label);
-            });
-
-            ui.add(egui::Slider::new(value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                *value += 1.0;
+                if ui.button("Stop").clicked() {
+                    let PartialBlock { start } = self.current.take().unwrap();
+                    let block = Block {
+                        start,
+                        length: duration,
+                    };
+                    self.blocks.push(block);
+                }
+            } else {
+                if ui.button("Start").clicked() {
+                    let now = SystemTime::now();
+                    self.current = Some(PartialBlock {
+                        start: now,
+                    })
+                }
             }
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
-                    ui.label("powered by ");
-                    ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-                    ui.label(" and ");
-                    ui.hyperlink_to("eframe", "https://github.com/emilk/egui/tree/master/eframe");
-                });
-            });
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
+            egui::Grid::new("the-grid").num_columns(3).show(ui, |ui| {
+                ui.label("Start");
+                ui.label("End");
+                ui.label("Duration");
+                ui.end_row();
 
-            ui.heading("eframe template");
-            ui.hyperlink("https://github.com/emilk/eframe_template");
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/master/",
-                "Source code."
-            ));
-            egui::warn_if_debug_build(ui);
-        });
-
-        if false {
-            egui::Window::new("Window").show(ctx, |ui| {
-                ui.label("Windows can be moved by dragging them.");
-                ui.label("They are automatically sized based on contents.");
-                ui.label("You can turn on resizing and scrolling if you like.");
-                ui.label("You would normally chose either panels OR windows.");
+                for block in self.blocks.iter() {
+                    ui.label(format!("{:?}", block.start));
+                    ui.label(format!("{:?}", block.start + block.length));
+                    ui.label(format!("{:?}", block.length));
+                    ui.end_row();
+                }
             });
-        }
+        });
     }
 }
