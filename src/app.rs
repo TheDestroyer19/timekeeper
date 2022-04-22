@@ -1,6 +1,6 @@
 use std::thread;
 
-use chrono::{DateTime, Local, Duration};
+use chrono::{DateTime, Duration, Local};
 use eframe::egui::RichText;
 use eframe::{egui, epi};
 
@@ -87,11 +87,9 @@ impl epi::App for TimeKeeperApp {
             self.draw_tabs(ui);
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            match self.screen {
-                AppScreen::Time => self.draw_times(ui),
-                AppScreen::Settings => self.draw_settings(ui),
-            }
+        egui::CentralPanel::default().show(ctx, |ui| match self.screen {
+            AppScreen::Time => self.draw_times(ui),
+            AppScreen::Settings => self.draw_settings(ui),
         });
 
         egui::TopBottomPanel::bottom("current").show(ctx, |ui| {
@@ -109,28 +107,35 @@ impl TimeKeeperApp {
     }
 
     fn draw_stopwatch(&mut self, ui: &mut egui::Ui) {
-        ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
-            if let Some(block) = &mut self.current {
-                let duration = Local::now() - block.start;
-    
-                ui.label(format!("{} - now ({})", block.start.format(&self.time_format), fmt_duration(duration)));
-    
-                if ui.button(RichText::new("Stop").size(20.0)).clicked() {
-                    let PartialBlock { start } = self.current.take().unwrap();
-                    let block = Block {
-                        start,
-                        end: Local::now(),
-                    };
-                    self.blocks.push(block);
+        ui.with_layout(
+            egui::Layout::top_down_justified(egui::Align::Center),
+            |ui| {
+                if let Some(block) = &mut self.current {
+                    let duration = Local::now() - block.start;
+
+                    ui.label(format!(
+                        "{} - now ({})",
+                        block.start.format(&self.time_format),
+                        fmt_duration(duration)
+                    ));
+
+                    if ui.button(RichText::new("Stop").size(20.0)).clicked() {
+                        let PartialBlock { start } = self.current.take().unwrap();
+                        let block = Block {
+                            start,
+                            end: Local::now(),
+                        };
+                        self.blocks.push(block);
+                    }
+                } else {
+                    if ui.button(RichText::new("Start").size(20.0)).clicked() {
+                        self.current = Some(PartialBlock {
+                            start: Local::now(),
+                        })
+                    }
                 }
-            } else {
-                if ui.button(RichText::new("Start").size(20.0)).clicked() {
-                    self.current = Some(PartialBlock {
-                        start: Local::now(),
-                    })
-                }
-            }
-        });
+            },
+        );
     }
 
     fn draw_times(&mut self, ui: &mut egui::Ui) {
@@ -138,29 +143,29 @@ impl TimeKeeperApp {
             .num_columns(4)
             .striped(true)
             .show(ui, |ui| {
-            ui.label("Start");
-            ui.label("End");
-            ui.label("Duration");
-            ui.end_row();
+                ui.label("Start");
+                ui.label("End");
+                ui.label("Duration");
+                ui.end_row();
 
-            let mut to_delete = None;
+                let mut to_delete = None;
 
-            for (index, block) in self.blocks.iter().enumerate() {
-                ui.label(block.start.format(&self.time_format).to_string());
-                ui.label(block.end.format(&self.time_format).to_string());
-                ui.label(fmt_duration(block.end - block.start));
+                for (index, block) in self.blocks.iter().enumerate() {
+                    ui.label(block.start.format(&self.time_format).to_string());
+                    ui.label(block.end.format(&self.time_format).to_string());
+                    ui.label(fmt_duration(block.end - block.start));
 
-                if ui.button("X").clicked() {
-                    to_delete = Some(index);
+                    if ui.button("X").clicked() {
+                        to_delete = Some(index);
+                    }
+
+                    ui.end_row();
                 }
 
-                ui.end_row();
-            }
-
-            if let Some(index) = to_delete {
-                self.blocks.remove(index);
-            }
-        });
+                if let Some(index) = to_delete {
+                    self.blocks.remove(index);
+                }
+            });
     }
 
     fn draw_settings(&mut self, ui: &mut egui::Ui) {
@@ -200,7 +205,9 @@ fn fmt_duration(mut duration: Duration) -> String {
 /// thread to update the gui regularly.
 /// This could be improved to only do it while the timer is active and the window is visible
 fn bg_timer(frame: epi::Frame) {
-    let one_second = Duration::seconds(1).to_std().expect("1 second should be in range");
+    let one_second = Duration::seconds(1)
+        .to_std()
+        .expect("1 second should be in range");
     loop {
         thread::sleep(one_second);
         frame.request_repaint();
