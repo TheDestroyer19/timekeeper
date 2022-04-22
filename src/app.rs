@@ -69,7 +69,7 @@ impl epi::App for TimeKeeperApp {
             if let Some(block) = &mut self.current {
                 let duration = Local::now() - block.start;
 
-                ui.label(format!("{} - now ({})", block.start.format(&self.time_format), duration));
+                ui.label(format!("{} - now ({})", block.start.format(&self.time_format), fmt_duration(duration)));
 
                 if ui.button("Stop").clicked() {
                     let PartialBlock { start } = self.current.take().unwrap();
@@ -98,10 +98,25 @@ impl epi::App for TimeKeeperApp {
                 for block in self.blocks.iter() {
                     ui.label(format!("{}", block.start.format(&self.time_format)));
                     ui.label(format!("{}", (block.start + block.length).format(&self.time_format)));
-                    ui.label(format!("{}", block.length));
+                    ui.label(format!("{}", fmt_duration(block.length)));
                     ui.end_row();
                 }
             });
         });
+    }
+}
+
+fn fmt_duration(mut duration: Duration) -> String {
+    //Assume negative durations are rounding errors, so move to zero
+    duration = duration.max(Duration::zero());
+
+    let hours = duration.num_hours();
+    let minutes = duration.num_minutes() % 60;
+    let seconds = duration.num_seconds() % 60;
+
+    if hours > 0 {
+        format!("{}h {}m", hours, minutes)
+    } else {
+        format!("{}m {}s", minutes, seconds)
     }
 }
