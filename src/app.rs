@@ -1,6 +1,7 @@
 use std::thread;
 
 use chrono::{DateTime, Local, Duration};
+use eframe::egui::RichText;
 use eframe::{egui, epi};
 
 /// A block of time
@@ -114,7 +115,7 @@ impl TimeKeeperApp {
     
                 ui.label(format!("{} - now ({})", block.start.format(&self.time_format), fmt_duration(duration)));
     
-                if ui.button("Stop").clicked() {
+                if ui.button(RichText::new("Stop").size(20.0)).clicked() {
                     let PartialBlock { start } = self.current.take().unwrap();
                     let block = Block {
                         start,
@@ -123,7 +124,7 @@ impl TimeKeeperApp {
                     self.blocks.push(block);
                 }
             } else {
-                if ui.button("Start").clicked() {
+                if ui.button(RichText::new("Start").size(20.0)).clicked() {
                     self.current = Some(PartialBlock {
                         start: Local::now(),
                     })
