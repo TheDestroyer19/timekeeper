@@ -8,7 +8,7 @@ use eframe::{egui, epi};
 struct Block {
     //pub tag: String,
     pub start: DateTime<Local>,
-    pub length: Duration,
+    pub end: DateTime<Local>,
 }
 
 /// A block of time that is still being tracked
@@ -83,7 +83,7 @@ impl epi::App for TimeKeeperApp {
                     let PartialBlock { start } = self.current.take().unwrap();
                     let block = Block {
                         start,
-                        length: duration,
+                        end: Local::now(),
                     };
                     self.blocks.push(block);
                 }
@@ -105,8 +105,8 @@ impl epi::App for TimeKeeperApp {
 
                 for block in self.blocks.iter() {
                     ui.label(format!("{}", block.start.format(&self.time_format)));
-                    ui.label(format!("{}", (block.start + block.length).format(&self.time_format)));
-                    ui.label(format!("{}", fmt_duration(block.length)));
+                    ui.label(format!("{}", block.end.format(&self.time_format)));
+                    ui.label(format!("{}", fmt_duration(block.end - block.start)));
                     ui.end_row();
                 }
             });
