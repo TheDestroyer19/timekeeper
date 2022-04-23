@@ -1,6 +1,6 @@
 use std::thread;
 
-use chrono::{DateTime, Duration, Local};
+use chrono::{TimeZone, DateTime, Duration, Local};
 use eframe::egui::RichText;
 use eframe::{egui, epi};
 
@@ -8,15 +8,8 @@ use eframe::{egui, epi};
 #[derive(serde::Deserialize, serde::Serialize)]
 struct Block {
     //pub tag: String,
-    pub start: DateTime<Local>,
-    pub end: DateTime<Local>,
-}
-
-/// A block of time that is still being tracked
-#[derive(serde::Deserialize, serde::Serialize)]
-struct PartialBlock {
-    //pub tag: String,
-    pub start: DateTime<Local>,
+    start: DateTime<Local>,
+    end: DateTime<Local>,
 }
 
 #[derive(PartialEq, Eq)]
@@ -31,9 +24,8 @@ enum AppScreen {
 pub struct TimeKeeperApp {
     date_format: String,
     time_format: String,
-    datetime_format: String,
     blocks: Vec<Block>,
-    current: Option<PartialBlock>,
+    current: Option<Block>,
 
     //app management stuff
     #[serde(skip)]
@@ -45,7 +37,6 @@ impl Default for TimeKeeperApp {
         Self {
             date_format: "%y-%m-%d".into(),
             time_format: "%H:%M".into(),
-            datetime_format: "%m-%d %H:%M".into(),
             blocks: Vec::new(),
             current: None,
             screen: AppScreen::Time,
@@ -86,7 +77,7 @@ impl epi::App for TimeKeeperApp {
         egui::TopBottomPanel::top("tabs").show(ctx, |ui| {
             self.draw_tabs(ui);
         });
-        
+
         egui::TopBottomPanel::bottom("stopwatch").show(ctx, |ui| {
             self.draw_stopwatch(ui);
         });
@@ -121,7 +112,7 @@ impl TimeKeeperApp {
                     ));
 
                     if ui.button(RichText::new("Stop").size(20.0)).clicked() {
-                        let PartialBlock { start } = self.current.take().unwrap();
+                        let Block { start, end: _ } = self.current.take().unwrap();
                         let block = Block {
                             start,
                             end: Local::now(),
@@ -129,8 +120,9 @@ impl TimeKeeperApp {
                         self.blocks.push(block);
                     }
                 } else if ui.button(RichText::new("Start").size(20.0)).clicked() {
-                    self.current = Some(PartialBlock {
+                    self.current = Some(Block {
                         start: Local::now(),
+                        end: Local::now(),
                     })
                 }
             },
@@ -139,28 +131,58 @@ impl TimeKeeperApp {
 
     fn draw_times(&mut self, ui: &mut egui::Ui) {
         egui::Grid::new("the-grid")
-            .num_columns(4)
+            .num_columns(7)
             .striped(true)
             .show(ui, |ui| {
-                ui.label("Start");
-                ui.label("End");
-                ui.label("Duration");
-                ui.end_row();
 
                 let mut to_delete = None;
+                let mut prev_date = Local.ymd(2000, 1, 1);
+                let mut total = Duration::zero();
 
                 for (index, block) in self.blocks.iter().enumerate() {
+                    let date = block.start.date();
+                    let end_date = block.end.date();
+                    let duration = block.end - block.start;
+
+                    if prev_date != date {
+                        ui.label(date.format(&self.date_format).to_string());
+                        prev_date = date;
+                    } else {
+                        ui.label("");
+                    }
+
                     ui.label(block.start.format(&self.time_format).to_string());
+
+                    ui.label("->");
+
+                    if date != end_date {
+                        ui.label(end_date.format(&self.date_format).to_string());
+                    } else {
+                        ui.label("");
+                    }
+
                     ui.label(block.end.format(&self.time_format).to_string());
-                    ui.label(fmt_duration(block.end - block.start));
+
+                    ui.label(fmt_duration(duration));
 
                     if ui.button("X").clicked() {
                         to_delete = Some(index);
                     }
 
+                    total = total + duration;
+
                     ui.end_row();
                 }
 
+                ui.label(RichText::new("Total").heading());
+                ui.label("");
+                ui.label("");
+                ui.label("");
+                ui.label("");
+                ui.label(fmt_duration(total));
+
+                ui.end_row();
+                
                 if let Some(index) = to_delete {
                     self.blocks.remove(index);
                 }
@@ -177,10 +199,6 @@ impl TimeKeeperApp {
 
                 ui.label("Time Format:");
                 ui.text_edit_singleline(&mut self.time_format);
-                ui.end_row();
-
-                ui.label("Date/Time Format:");
-                ui.text_edit_singleline(&mut self.datetime_format);
                 ui.end_row();
             });
     }
