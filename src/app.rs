@@ -1,6 +1,6 @@
 use std::thread;
 
-use chrono::{TimeZone, DateTime, Duration, Local};
+use chrono::{DateTime, Duration, Local, TimeZone};
 use eframe::egui::RichText;
 use eframe::{egui, epi};
 
@@ -101,7 +101,6 @@ impl TimeKeeperApp {
         ui.with_layout(
             egui::Layout::top_down_justified(egui::Align::Center),
             |ui| {
-                
                 if let Some(block) = &mut self.current {
                     let duration = Local::now() - block.start;
 
@@ -134,7 +133,6 @@ impl TimeKeeperApp {
             .num_columns(7)
             .striped(true)
             .show(ui, |ui| {
-
                 let mut to_delete = None;
                 let mut prev_date = Local.ymd(2000, 1, 1);
                 let mut total = Duration::zero();
@@ -182,7 +180,7 @@ impl TimeKeeperApp {
                 ui.label(fmt_duration(total));
 
                 ui.end_row();
-                
+
                 if let Some(index) = to_delete {
                     self.blocks.remove(index);
                 }
