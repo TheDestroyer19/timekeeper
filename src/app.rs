@@ -1,16 +1,11 @@
 use std::thread;
 
-use chrono::{DateTime, Duration, Local, TimeZone};
+use chrono::{Duration, Local, TimeZone};
 use eframe::egui::RichText;
 use eframe::{egui, epi};
 
-/// A block of time
-#[derive(serde::Deserialize, serde::Serialize)]
-struct Block {
-    //pub tag: String,
-    start: DateTime<Local>,
-    end: DateTime<Local>,
-}
+use crate::stopwatch::StopWatch;
+
 
 #[derive(PartialEq, Eq)]
 enum AppScreen {
@@ -24,8 +19,9 @@ enum AppScreen {
 pub struct TimeKeeperApp {
     date_format: String,
     time_format: String,
-    blocks: Vec<Block>,
-    current: Option<Block>,
+
+    #[serde(flatten)]
+    stopwatch: StopWatch,
 
     //app management stuff
     #[serde(skip)]
@@ -37,8 +33,7 @@ impl Default for TimeKeeperApp {
         Self {
             date_format: "%y-%m-%d".into(),
             time_format: "%H:%M".into(),
-            blocks: Vec::new(),
-            current: None,
+            stopwatch: StopWatch::default(),
             screen: AppScreen::Time,
         }
     }
@@ -101,7 +96,7 @@ impl TimeKeeperApp {
         ui.with_layout(
             egui::Layout::top_down_justified(egui::Align::Center),
             |ui| {
-                if let Some(block) = &mut self.current {
+                if let Some(block) = self.stopwatch.current() {
                     let duration = Local::now() - block.start;
 
                     ui.label(format!(
@@ -111,18 +106,10 @@ impl TimeKeeperApp {
                     ));
 
                     if ui.button(RichText::new("Stop").size(20.0)).clicked() {
-                        let Block { start, end: _ } = self.current.take().unwrap();
-                        let block = Block {
-                            start,
-                            end: Local::now(),
-                        };
-                        self.blocks.push(block);
+                        self.stopwatch.stop();
                     }
                 } else if ui.button(RichText::new("Start").size(20.0)).clicked() {
-                    self.current = Some(Block {
-                        start: Local::now(),
-                        end: Local::now(),
-                    })
+                    self.stopwatch.start();
                 }
             },
         );
@@ -137,7 +124,7 @@ impl TimeKeeperApp {
                 let mut prev_date = Local.ymd(2000, 1, 1);
                 let mut total = Duration::zero();
 
-                for (index, block) in self.blocks.iter().enumerate() {
+                for (index, block) in self.stopwatch.all_blocks() {
                     let date = block.start.date();
                     let end_date = block.end.date();
                     let duration = block.end - block.start;
@@ -182,7 +169,7 @@ impl TimeKeeperApp {
                 ui.end_row();
 
                 if let Some(index) = to_delete {
-                    self.blocks.remove(index);
+                    self.stopwatch.delete(index);
                 }
             });
     }
