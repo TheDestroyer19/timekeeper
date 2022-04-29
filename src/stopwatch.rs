@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, Duration};
 use rusqlite::Connection;
 
 use crate::APP_NAME;
@@ -104,6 +104,19 @@ impl StopWatch {
         })).unwrap()
         .map(|b| b.unwrap())
         .collect()
+    }
+
+    pub fn total_time(&self) -> Duration {
+        let database = self.database.as_ref().expect("Database connection has been initialized");
+        let stuff: f64 = database
+            .query_row(
+                "SELECT sum((JulianDay(end) - JulianDay(start)) * 24 * 60 * 60) FROM time_blocks;", 
+                [],
+                |row| row.get(0)
+            )
+            .unwrap();
+        
+        Duration::seconds(stuff as i64)
     }
 
     fn insert_block(&self, block: Block) {

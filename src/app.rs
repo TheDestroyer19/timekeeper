@@ -125,7 +125,6 @@ impl TimeKeeperApp {
             .show(ui, |ui| {
                 let mut to_delete = None;
                 let mut prev_date = Local.ymd(2000, 1, 1);
-                let mut total = Duration::zero();
 
                 for block in self.stopwatch.all_blocks() {
                     let date = block.start.date();
@@ -157,8 +156,6 @@ impl TimeKeeperApp {
                         to_delete = Some(block);
                     }
 
-                    total = total + duration;
-
                     ui.end_row();
                 }
 
@@ -167,7 +164,7 @@ impl TimeKeeperApp {
                 ui.label("");
                 ui.label("");
                 ui.label("");
-                ui.label(fmt_duration(total));
+                ui.label(fmt_duration(self.stopwatch.total_time()));
 
                 ui.end_row();
 
