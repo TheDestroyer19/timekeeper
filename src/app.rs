@@ -1,6 +1,6 @@
 use std::thread;
 
-use chrono::{Duration, Local, TimeZone};
+use chrono::{Duration, Local, TimeZone, Datelike, Date};
 use eframe::egui::RichText;
 use eframe::{egui, epi};
 
@@ -9,6 +9,7 @@ use crate::stopwatch::StopWatch;
 
 #[derive(PartialEq, Eq)]
 enum AppScreen {
+    Today,
     Time,
     Settings,
 }
@@ -81,6 +82,7 @@ impl epi::App for TimeKeeperApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| match self.screen {
+            AppScreen::Today => self.draw_today(ui),
             AppScreen::Time => self.draw_times(ui),
             AppScreen::Settings => self.draw_settings(ui),
         });
@@ -90,6 +92,7 @@ impl epi::App for TimeKeeperApp {
 impl TimeKeeperApp {
     fn draw_tabs(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
+            ui.selectable_value(&mut self.screen, AppScreen::Today, "Today");
             ui.selectable_value(&mut self.screen, AppScreen::Time, "Time");
             ui.selectable_value(&mut self.screen, AppScreen::Settings, "Settings");
         });
@@ -116,6 +119,38 @@ impl TimeKeeperApp {
                 }
             },
         );
+    }
+
+    fn draw_today(&mut self, ui: &mut egui::Ui) {
+        //TODO figure out how to get monday (or sunday) before today (or today fi such)
+
+        let today = Local::now().date();
+
+        let (total, blocks) = self.stopwatch.blocks_in_day(today);
+
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(today.format(&self.date_format).to_string()).heading());
+            ui.label(RichText::new(fmt_duration(total)).heading());
+        });
+        egui::Grid::new(today.weekday())
+            .num_columns(4)
+            .striped(true)
+            .show(ui, |ui| for block in blocks {
+                ui.label(block.start.format(&self.time_format).to_string());
+                ui.label("->");
+                if block.start.date() == block.end.date() {
+                    ui.label(block.end.format(&self.time_format).to_string());
+                } else {
+                    ui.horizontal(|ui| {
+                        ui.label(block.end.format(&self.date_format).to_string());
+                        ui.label(block.end.format(&self.time_format).to_string());
+                    });
+                }
+                ui.label(fmt_duration(block.duration()));
+                ui.end_row();
+            });
+        
+        ui.separator();
     }
 
     fn draw_times(&mut self, ui: &mut egui::Ui) {

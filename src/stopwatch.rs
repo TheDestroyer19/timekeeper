@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, Duration};
+use chrono::{DateTime, Local, Duration, Date, NaiveDate};
 use rusqlite::Connection;
 
 use crate::APP_NAME;
@@ -9,6 +9,12 @@ pub struct Block {
     id: usize,
     pub start: DateTime<Local>,
     pub end: DateTime<Local>,
+}
+
+impl Block {
+    pub fn duration(&self) -> Duration {
+        self.end - self.start
+    }
 }
 
 #[derive(Default)]
@@ -106,8 +112,30 @@ impl StopWatch {
         .collect()
     }
 
+    pub fn blocks_in_day(&self, day: Date<Local>) -> (Duration, Vec<Block>) {
+        let conn = self.conn();
+        let before = day.and_hms(0, 0, 0);
+        let after = before + Duration::days(1);
+        let mut stmt = conn.prepare("
+            SELECT id, start, end 
+            FROM time_blocks
+            WHERE JulianDay(start) > JulianDay(?1) AND JulianDay(start) < JulianDay(?2)
+        ").unwrap();
+        let rows: Vec<Block> = stmt.query_map([before, after], |row| Ok(Block {
+            id: row.get(0)?,
+            start: row.get(1)?,
+            end: row.get(2)?,
+        })).unwrap()
+        .map(|b| b.unwrap())
+        .collect();
+
+        let total = rows.iter().fold(Duration::zero(), |a, b| a + b.duration());
+
+        (total, rows)
+    } 
+
     pub fn total_time(&self) -> Duration {
-        let database = self.database.as_ref().expect("Database connection has been initialized");
+        let database = self.conn();
         let stuff: f64 = database
             .query_row(
                 "SELECT sum((JulianDay(end) - JulianDay(start)) * 24 * 60 * 60) FROM time_blocks;", 
@@ -117,6 +145,10 @@ impl StopWatch {
             .unwrap();
         
         Duration::seconds(stuff as i64)
+    }
+
+    fn conn(&self) -> &Connection {
+        self.database.as_ref().expect("Database connection has been initialized")
     }
 
     fn insert_block(&self, block: Block) {
