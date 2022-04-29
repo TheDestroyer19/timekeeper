@@ -1,7 +1,7 @@
 use std::thread;
 
-use chrono::{Duration, Local, TimeZone, Datelike, Date};
-use eframe::egui::RichText;
+use chrono::{Duration, Local, TimeZone, Datelike};
+use eframe::egui::{RichText, DragValue};
 use eframe::{egui, epi};
 
 use crate::APP_NAME;
@@ -21,7 +21,8 @@ pub struct TimeKeeperApp {
     date_format: String,
     time_format: String,
 
-    #[serde(flatten)]
+    daily_target_hours: f32,
+    
     stopwatch: StopWatch,
 
     //app management stuff
@@ -34,6 +35,7 @@ impl Default for TimeKeeperApp {
         Self {
             date_format: "%y-%m-%d".into(),
             time_format: "%H:%M".into(),
+            daily_target_hours: 8.0,
             stopwatch: StopWatch::default(),
             screen: AppScreen::Time,
         }
@@ -122,9 +124,17 @@ impl TimeKeeperApp {
     }
 
     fn draw_today(&mut self, ui: &mut egui::Ui) {
-        let today = Local::now().date();
+        let now = Local::now();
 
-        let (total, blocks) = self.stopwatch.blocks_in_day(today);
+        let today = now.date();
+
+        let current = self.stopwatch.current();
+
+        let (mut total, blocks) = self.stopwatch.blocks_in_day(today);
+
+        if let Some(current) = &current {
+            total = total + current.duration();
+        }
 
         ui.horizontal(|ui| {
             ui.label(RichText::new(today.format(&self.date_format).to_string()).heading());
@@ -149,6 +159,13 @@ impl TimeKeeperApp {
             });
         
         ui.separator();
+
+        if self.daily_target_hours > 0.01 && current.is_some() {
+            let goal = Duration::minutes((self.daily_target_hours * 60.0) as i64);
+            let left = goal - total;
+            let target = now + left;
+            ui.label(format!("You will reach {} today at {}", fmt_duration(goal), target.format(&self.time_format)));
+        }
     }
 
     fn draw_times(&mut self, ui: &mut egui::Ui) {
@@ -217,6 +234,10 @@ impl TimeKeeperApp {
 
                 ui.label("Time Format:");
                 ui.text_edit_singleline(&mut self.time_format);
+                ui.end_row();
+
+                ui.label("Daily Target Hours:");
+                ui.add(DragValue::new(&mut self.daily_target_hours).clamp_range(0.0..=24.0));
                 ui.end_row();
             });
     }

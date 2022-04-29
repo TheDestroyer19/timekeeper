@@ -1,10 +1,10 @@
-use chrono::{DateTime, Local, Duration, Date, NaiveDate};
+use chrono::{DateTime, Local, Duration, Date};
 use rusqlite::Connection;
 
 use crate::APP_NAME;
 
 /// A block of time
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct Block {
     id: usize,
     pub start: DateTime<Local>,
@@ -91,8 +91,11 @@ impl StopWatch {
         }
     }
 
-    pub fn current(&self) -> Option<&Block> {
-        self.current.as_ref()
+    pub fn current(&mut self) -> Option<Block> {
+        if let Some(block) = &mut self.current {
+            block.end = Local::now();
+        }
+        self.current.clone()
     }
 
     pub fn delete_block(&mut self, block: Block) {
