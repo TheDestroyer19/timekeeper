@@ -122,8 +122,6 @@ impl TimeKeeperApp {
     }
 
     fn draw_today(&mut self, ui: &mut egui::Ui) {
-        //TODO figure out how to get monday (or sunday) before today (or today fi such)
-
         let today = Local::now().date();
 
         let (total, blocks) = self.stopwatch.blocks_in_day(today);
