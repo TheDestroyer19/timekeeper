@@ -4,8 +4,8 @@ use chrono::{Duration, Local, TimeZone};
 use eframe::egui::RichText;
 use eframe::{egui, epi};
 
+use crate::APP_NAME;
 use crate::stopwatch::StopWatch;
-
 
 #[derive(PartialEq, Eq)]
 enum AppScreen {
@@ -41,7 +41,7 @@ impl Default for TimeKeeperApp {
 
 impl epi::App for TimeKeeperApp {
     fn name(&self) -> &str {
-        "TimeKeeper"
+        APP_NAME
     }
 
     /// Called once before the first frame.
@@ -55,6 +55,9 @@ impl epi::App for TimeKeeperApp {
         if let Some(storage) = _storage {
             *self = epi::get_value(storage, epi::APP_KEY).unwrap_or_default()
         }
+
+        //open database, and give to stopwatch
+        self.stopwatch.init_database();
 
         //start up bg thread
         let frame = frame.clone();
@@ -124,7 +127,7 @@ impl TimeKeeperApp {
                 let mut prev_date = Local.ymd(2000, 1, 1);
                 let mut total = Duration::zero();
 
-                for (index, block) in self.stopwatch.all_blocks() {
+                for block in self.stopwatch.all_blocks() {
                     let date = block.start.date();
                     let end_date = block.end.date();
                     let duration = block.end - block.start;
@@ -151,7 +154,7 @@ impl TimeKeeperApp {
                     ui.label(fmt_duration(duration));
 
                     if ui.button("X").clicked() {
-                        to_delete = Some(index);
+                        to_delete = Some(block);
                     }
 
                     total = total + duration;
@@ -169,7 +172,7 @@ impl TimeKeeperApp {
                 ui.end_row();
 
                 if let Some(index) = to_delete {
-                    self.stopwatch.delete(index);
+                    self.stopwatch.delete_block(index);
                 }
             });
     }

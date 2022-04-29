@@ -6,6 +6,8 @@ mod app;
 mod stopwatch;
 pub use app::TimeKeeperApp;
 
+const APP_NAME: &'static str = "TimeKeeper";
+
 // ----------------------------------------------------------------------------
 // When compiling for web:
 
