@@ -1,11 +1,11 @@
 use std::thread;
 
-use chrono::{Duration, Local, TimeZone, Datelike};
-use eframe::egui::{RichText, DragValue};
+use chrono::{Datelike, Duration, Local, TimeZone};
+use eframe::egui::{DragValue, RichText};
 use eframe::{egui, epi};
 
-use crate::APP_NAME;
 use crate::stopwatch::StopWatch;
+use crate::APP_NAME;
 
 #[derive(PartialEq, Eq)]
 enum AppScreen {
@@ -22,7 +22,7 @@ pub struct TimeKeeperApp {
     time_format: String,
 
     daily_target_hours: f32,
-    
+
     stopwatch: StopWatch,
 
     //app management stuff
@@ -143,28 +143,34 @@ impl TimeKeeperApp {
         egui::Grid::new(today.weekday())
             .num_columns(4)
             .striped(true)
-            .show(ui, |ui| for block in blocks {
-                ui.label(block.start.format(&self.time_format).to_string());
-                ui.label("->");
-                if block.start.date() == block.end.date() {
-                    ui.label(block.end.format(&self.time_format).to_string());
-                } else {
-                    ui.horizontal(|ui| {
-                        ui.label(block.end.format(&self.date_format).to_string());
+            .show(ui, |ui| {
+                for block in blocks {
+                    ui.label(block.start.format(&self.time_format).to_string());
+                    ui.label("->");
+                    if block.start.date() == block.end.date() {
                         ui.label(block.end.format(&self.time_format).to_string());
-                    });
+                    } else {
+                        ui.horizontal(|ui| {
+                            ui.label(block.end.format(&self.date_format).to_string());
+                            ui.label(block.end.format(&self.time_format).to_string());
+                        });
+                    }
+                    ui.label(fmt_duration(block.duration()));
+                    ui.end_row();
                 }
-                ui.label(fmt_duration(block.duration()));
-                ui.end_row();
             });
-        
+
         ui.separator();
 
         if self.daily_target_hours > 0.01 && current.is_some() {
             let goal = Duration::minutes((self.daily_target_hours * 60.0) as i64);
             let left = goal - total;
             let target = now + left;
-            ui.label(format!("You will reach {} today at {}", fmt_duration(goal), target.format(&self.time_format)));
+            ui.label(format!(
+                "You will reach {} today at {}",
+                fmt_duration(goal),
+                target.format(&self.time_format)
+            ));
         }
     }
 

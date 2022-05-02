@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, Duration, Date};
+use chrono::{Date, DateTime, Duration, Local};
 use rusqlite::Connection;
 
 use crate::APP_NAME;
@@ -17,8 +17,7 @@ impl Block {
     }
 }
 
-#[derive(Default)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Default, serde::Deserialize, serde::Serialize)]
 pub struct StopWatch {
     current: Option<Block>,
     #[serde(skip)]
@@ -47,11 +46,13 @@ impl StopWatch {
 
         if let Some(path) = path {
             if let Ok(conn) = Connection::open(path) {
-                if Err(rusqlite::Error::QueryReturnedNoRows) == conn.query_row(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name='time_blocks';", 
-                    [], 
-                    |row| row.get::<usize, String>(0)
-                ) {
+                if Err(rusqlite::Error::QueryReturnedNoRows)
+                    == conn.query_row(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name='time_blocks';",
+                        [],
+                        |row| row.get::<usize, String>(0),
+                    )
+                {
                     conn.execute(
                         "CREATE TABLE time_blocks (
                             id    INTEGER PRIMARY KEY,
@@ -59,7 +60,8 @@ impl StopWatch {
                             end   TEXT NOT NULL
                         )",
                         [], // empty list of parameters.
-                    ).unwrap();
+                    )
+                    .unwrap();
                 }
                 self.database = Some(conn);
             } else {
@@ -99,18 +101,31 @@ impl StopWatch {
     }
 
     pub fn delete_block(&mut self, block: Block) {
-        let database = self.database.as_ref().expect("Database connection has been initialized");
-        database.execute("DELETE FROM time_blocks WHERE id = ?1", [block.id]).unwrap();
+        let database = self
+            .database
+            .as_ref()
+            .expect("Database connection has been initialized");
+        database
+            .execute("DELETE FROM time_blocks WHERE id = ?1", [block.id])
+            .unwrap();
     }
 
     pub fn all_blocks(&self) -> Vec<Block> {
-        let database = self.database.as_ref().expect("Database connection has been initialized");
-        let mut stmt = database.prepare("SELECT id, start, end FROM time_blocks").unwrap();
-        stmt.query_map([], |row| Ok(Block {
-            id: row.get(0)?,
-            start: row.get(1)?,
-            end: row.get(2)?,
-        })).unwrap()
+        let database = self
+            .database
+            .as_ref()
+            .expect("Database connection has been initialized");
+        let mut stmt = database
+            .prepare("SELECT id, start, end FROM time_blocks")
+            .unwrap();
+        stmt.query_map([], |row| {
+            Ok(Block {
+                id: row.get(0)?,
+                start: row.get(1)?,
+                end: row.get(2)?,
+            })
+        })
+        .unwrap()
         .map(|b| b.unwrap())
         .collect()
     }
@@ -119,46 +134,61 @@ impl StopWatch {
         let conn = self.conn();
         let before = day.and_hms(0, 0, 0);
         let after = before + Duration::days(1);
-        let mut stmt = conn.prepare("
+        let mut stmt = conn
+            .prepare(
+                "
             SELECT id, start, end 
             FROM time_blocks
             WHERE JulianDay(start) > JulianDay(?1) AND JulianDay(start) < JulianDay(?2)
-        ").unwrap();
-        let rows: Vec<Block> = stmt.query_map([before, after], |row| Ok(Block {
-            id: row.get(0)?,
-            start: row.get(1)?,
-            end: row.get(2)?,
-        })).unwrap()
-        .map(|b| b.unwrap())
-        .collect();
+        ",
+            )
+            .unwrap();
+        let rows: Vec<Block> = stmt
+            .query_map([before, after], |row| {
+                Ok(Block {
+                    id: row.get(0)?,
+                    start: row.get(1)?,
+                    end: row.get(2)?,
+                })
+            })
+            .unwrap()
+            .map(|b| b.unwrap())
+            .collect();
 
         let total = rows.iter().fold(Duration::zero(), |a, b| a + b.duration());
 
         (total, rows)
-    } 
+    }
 
     pub fn total_time(&self) -> Duration {
         let database = self.conn();
         let stuff: f64 = database
             .query_row(
-                "SELECT sum((JulianDay(end) - JulianDay(start)) * 24 * 60 * 60) FROM time_blocks;", 
+                "SELECT sum((JulianDay(end) - JulianDay(start)) * 24 * 60 * 60) FROM time_blocks;",
                 [],
-                |row| row.get(0)
+                |row| row.get(0),
             )
             .unwrap();
-        
+
         Duration::seconds(stuff as i64)
     }
 
     fn conn(&self) -> &Connection {
-        self.database.as_ref().expect("Database connection has been initialized")
+        self.database
+            .as_ref()
+            .expect("Database connection has been initialized")
     }
 
     fn insert_block(&self, block: Block) {
-        let database = self.database.as_ref().expect("Database connection has been initialized");
-        database.execute(
-            "INSERT INTO time_blocks (start, end) VALUES (?1, ?2)",
-             [block.start, block.end]
-        ).unwrap();
+        let database = self
+            .database
+            .as_ref()
+            .expect("Database connection has been initialized");
+        database
+            .execute(
+                "INSERT INTO time_blocks (start, end) VALUES (?1, ?2)",
+                [block.start, block.end],
+            )
+            .unwrap();
     }
 }
