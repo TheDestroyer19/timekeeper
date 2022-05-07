@@ -3,10 +3,13 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
 mod app;
+mod gui;
 mod stopwatch;
 pub use app::TimeKeeperApp;
 
 const APP_NAME: &'static str = "TimeKeeper";
+const SETTINGS_KEY: &'static str = "Settings";
+const STATE_KEY: &'static str = "State";
 
 // ----------------------------------------------------------------------------
 // When compiling for web:

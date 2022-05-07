@@ -1,0 +1,208 @@
+use chrono::{Local, Duration, Date, TimeZone};
+use eframe::egui::{self, RichText, DragValue};
+
+use crate::{stopwatch::StopWatch, app::Settings};
+
+
+#[derive(serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub enum GuiState {
+    Today,
+    ThisWeek,
+    AllTime,
+    Settings,
+}
+
+impl Default for GuiState {
+    fn default() -> Self {
+        GuiState::Today
+    }
+}
+
+impl GuiState {
+    pub fn draw_tabs(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.selectable_value(self, GuiState::Today, "Today");
+            ui.selectable_value(self, GuiState::ThisWeek, "This Week");
+            ui.selectable_value(self, GuiState::AllTime, "History");
+            ui.selectable_value(self, GuiState::Settings, "Settings");
+        });
+    }
+
+    pub fn draw_screen(&self, stopwatch: &mut StopWatch, settings: &mut Settings, ui: &mut egui::Ui) {
+        match self {
+            GuiState::Today => draw_today(stopwatch, settings, ui),
+            GuiState::ThisWeek => draw_this_week(stopwatch, settings, ui),
+            GuiState::AllTime => draw_times(stopwatch, settings, ui),
+            GuiState::Settings => draw_settings(settings, ui),
+        }
+    } 
+}
+
+pub fn draw_stopwatch(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
+    ui.with_layout(
+        egui::Layout::top_down_justified(egui::Align::Center),
+        |ui| {
+            if let Some(block) = stopwatch.current() {
+                let duration = block.duration();
+
+                ui.label(format!(
+                    "{} - now ({})",
+                    block.start.format(&settings.time_format),
+                    fmt_duration(duration)
+                ));
+
+                if ui.button(RichText::new("Stop").size(20.0)).clicked() {
+                    stopwatch.stop();
+                }
+            } else if ui.button(RichText::new("Start").size(20.0)).clicked() {
+                stopwatch.start();
+            }
+        },
+    );
+}
+
+pub fn fmt_duration(mut duration: Duration) -> String {
+    //Assume negative durations are rounding errors, so move to zero
+    duration = duration.max(Duration::zero());
+
+    let hours = duration.num_hours();
+    let minutes = duration.num_minutes() % 60;
+    let seconds = duration.num_seconds() % 60;
+
+    if hours > 0 {
+        format!("{}h {}m", hours, minutes)
+    } else {
+        format!("{}m {}s", minutes, seconds)
+    }
+}
+
+fn draw_today(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
+    let now = Local::now();
+    let today = now.date();
+
+    let total = draw_day(today, stopwatch, settings, ui);
+
+    ui.separator();
+
+    let current = stopwatch.current();
+
+    if settings.daily_target_hours > 0.01 && current.is_some() {
+        let goal = Duration::minutes((settings.daily_target_hours * 60.0) as i64);
+        let left = goal - total;
+        let target = now + left;
+        ui.label(format!(
+            "You will reach {} today at {}",
+            fmt_duration(goal),
+            target.format(&settings.time_format)
+        ));
+    }
+}
+
+fn draw_day(day: Date<Local>, stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) -> Duration {
+    let (total, blocks) = stopwatch.blocks_in_day(day);
+
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(day.format(&settings.date_format).to_string()).heading());
+        ui.label(RichText::new(fmt_duration(total)).heading());
+    });
+    egui::Grid::new(day)
+        .num_columns(4)
+        .striped(true)
+        .show(ui, |ui| {
+            for block in blocks {
+                ui.label(block.start.format(&settings.time_format).to_string());
+                ui.label("->");
+                if block.start.date() == block.end.date() {
+                    ui.label(block.end.format(&settings.time_format).to_string());
+                } else {
+                    ui.horizontal(|ui| {
+                        ui.label(block.end.format(&settings.date_format).to_string());
+                        ui.label(block.end.format(&settings.time_format).to_string());
+                    });
+                }
+                ui.label(fmt_duration(block.duration()));
+                ui.end_row();
+            }
+        });
+
+    total
+}
+
+fn draw_this_week(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
+    //TODO implement week display
+    ui.label("Unimplemented");
+}
+
+fn draw_times(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
+    egui::Grid::new("the-grid")
+        .num_columns(7)
+        .striped(true)
+        .show(ui, |ui| {
+            let mut to_delete = None;
+            let mut prev_date = Local.ymd(2000, 1, 1);
+
+            for block in stopwatch.all_blocks() {
+                let date = block.start.date();
+                let end_date = block.end.date();
+                let duration = block.end - block.start;
+
+                if prev_date != date {
+                    ui.label(date.format(&settings.date_format).to_string());
+                    prev_date = date;
+                } else {
+                    ui.label("");
+                }
+
+                ui.label(block.start.format(&settings.time_format).to_string());
+
+                ui.label("->");
+
+                if date != end_date {
+                    ui.label(end_date.format(&settings.date_format).to_string());
+                } else {
+                    ui.label("");
+                }
+
+                ui.label(block.end.format(&settings.time_format).to_string());
+
+                ui.label(fmt_duration(duration));
+
+                if ui.button("X").clicked() {
+                    to_delete = Some(block);
+                }
+
+                ui.end_row();
+            }
+
+            ui.label(RichText::new("Total").heading());
+            ui.label("");
+            ui.label("");
+            ui.label("");
+            ui.label("");
+            ui.label(fmt_duration(stopwatch.total_time()));
+
+            ui.end_row();
+
+            if let Some(index) = to_delete {
+                stopwatch.delete_block(index);
+            }
+        });
+}
+
+fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) {
+    egui::Grid::new("settings-grid")
+        .num_columns(2)
+        .show(ui, |ui| {
+            ui.label("Date Format:");
+            ui.text_edit_singleline(&mut settings.date_format);
+            ui.end_row();
+
+            ui.label("Time Format:");
+            ui.text_edit_singleline(&mut settings.time_format);
+            ui.end_row();
+
+            ui.label("Daily Target Hours:");
+            ui.add(DragValue::new(&mut settings.daily_target_hours).clamp_range(0.0..=24.0));
+            ui.end_row();
+        });
+}
