@@ -74,11 +74,14 @@ impl StopWatch {
 
     pub fn start(&mut self) {
         let now = Local::now();
-        self.insert_block(Block {
-            id: 0,
-            start: now,
-            end: now,
-        }, true);
+        self.insert_block(
+            Block {
+                id: 0,
+                start: now,
+                end: now,
+            },
+            true,
+        );
     }
 
     pub fn stop(&mut self) {
@@ -92,13 +95,15 @@ impl StopWatch {
     pub fn current(&mut self) -> Option<Block> {
         let conn = self.conn();
         let current = conn.query_row(
-            "SELECT id, start, end FROM time_blocks WHERE running is 'Y'", 
+            "SELECT id, start, end FROM time_blocks WHERE running is 'Y'",
             [],
-            |row| Ok(Block {
-                id: row.get(0)?,
-                start: row.get(1)?,
-                end: row.get(2)?,
-            })
+            |row| {
+                Ok(Block {
+                    id: row.get(0)?,
+                    start: row.get(1)?,
+                    end: row.get(2)?,
+                })
+            },
         );
 
         match current {
@@ -106,9 +111,12 @@ impl StopWatch {
                 block.end = Local::now();
                 self.update_block(block.clone(), true).unwrap();
                 Some(block)
-            },
+            }
             Err(rusqlite::Error::QueryReturnedNoRows) => None,
-            Err(e) => { tracing::error!("Database error: {}", e); None },
+            Err(e) => {
+                tracing::error!("Database error: {}", e);
+                None
+            }
         }
     }
 
@@ -149,23 +157,24 @@ impl StopWatch {
         let rows: Vec<Block> = {
             let conn = self.conn();
             let mut stmt = conn
-                .prepare("SELECT id, start, end 
+                .prepare(
+                    "SELECT id, start, end 
                     FROM time_blocks
                     WHERE JulianDay(start) > JulianDay(?1) 
-                    AND JulianDay(start) < JulianDay(?2)")
+                    AND JulianDay(start) < JulianDay(?2)",
+                )
                 .unwrap();
 
-            stmt
-                .query_map([before, after], |row| {
-                    Ok(Block {
-                        id: row.get(0)?,
-                        start: row.get(1)?,
-                        end: row.get(2)?,
-                    })
+            stmt.query_map([before, after], |row| {
+                Ok(Block {
+                    id: row.get(0)?,
+                    start: row.get(1)?,
+                    end: row.get(2)?,
                 })
-                .unwrap()
-                .map(|b| b.unwrap())
-                .collect()
+            })
+            .unwrap()
+            .map(|b| b.unwrap())
+            .collect()
         };
 
         let total = rows.iter().fold(Duration::zero(), |a, b| a + b.duration());
@@ -198,11 +207,7 @@ impl StopWatch {
 
     fn insert_block(&self, block: Block, running: bool) {
         let database = self.conn();
-        let running = if running {
-            Some("Y")
-        } else {
-            None
-        };
+        let running = if running { Some("Y") } else { None };
 
         database
             .execute(
@@ -214,18 +219,14 @@ impl StopWatch {
 
     fn update_block(&self, block: Block, running: bool) -> Result<(), rusqlite::Error> {
         let database = self.conn();
-        let running = if running {
-            Some("Y")
-        } else {
-            None
-        };
-        
+        let running = if running { Some("Y") } else { None };
+
         database
             .execute(
                 "UPDATE time_blocks 
                 SET start = ?2, end = ?3, running = ?4
                 WHERE id = ?1",
-                rusqlite::params![block.id, block.start, block.end, running]
+                rusqlite::params![block.id, block.start, block.end, running],
             )
             .map(|_| ())
     }

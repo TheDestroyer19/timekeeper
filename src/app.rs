@@ -1,6 +1,6 @@
 use std::thread;
 
-use chrono::{Duration, Local, TimeZone, Date};
+use chrono::{Date, Duration, Local, TimeZone};
 use eframe::egui::{DragValue, RichText};
 use eframe::{egui, epi};
 
@@ -141,7 +141,7 @@ impl TimeKeeperApp {
         ui.separator();
 
         let current = self.stopwatch.current();
-        
+
         if self.daily_target_hours > 0.01 && current.is_some() {
             let goal = Duration::minutes((self.daily_target_hours * 60.0) as i64);
             let left = goal - total;
