@@ -162,7 +162,7 @@ impl StopWatch {
 
     pub fn total_time(&self) -> Duration {
         let database = self.conn();
-        let stuff: f64 = database
+        let stuff: Option<f64> = database
             .query_row(
                 "SELECT sum((JulianDay(end) - JulianDay(start)) * 24 * 60 * 60) FROM time_blocks;",
                 [],
@@ -170,7 +170,7 @@ impl StopWatch {
             )
             .unwrap();
 
-        Duration::seconds(stuff as i64)
+        Duration::seconds(stuff.unwrap_or(0.0) as i64)
     }
 
     fn conn(&self) -> &Connection {
