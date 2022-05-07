@@ -1,8 +1,10 @@
-use chrono::{Local, Duration, Date, TimeZone};
-use eframe::egui::{self, RichText, DragValue};
+use chrono::{Datelike, Duration, Local, NaiveDate, TimeZone};
+use eframe::egui::{self, DragValue, RichText};
 
-use crate::{stopwatch::StopWatch, app::Settings};
-
+use crate::{
+    app::Settings,
+    stopwatch::{Block, StopWatch},
+};
 
 #[derive(serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum GuiState {
@@ -28,14 +30,19 @@ impl GuiState {
         });
     }
 
-    pub fn draw_screen(&self, stopwatch: &mut StopWatch, settings: &mut Settings, ui: &mut egui::Ui) {
+    pub fn draw_screen(
+        &self,
+        stopwatch: &mut StopWatch,
+        settings: &mut Settings,
+        ui: &mut egui::Ui,
+    ) {
         match self {
             GuiState::Today => draw_today(stopwatch, settings, ui),
             GuiState::ThisWeek => draw_this_week(stopwatch, settings, ui),
             GuiState::AllTime => draw_times(stopwatch, settings, ui),
             GuiState::Settings => draw_settings(settings, ui),
         }
-    } 
+    }
 }
 
 pub fn draw_stopwatch(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
@@ -80,7 +87,14 @@ fn draw_today(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui)
     let now = Local::now();
     let today = now.date();
 
-    let total = draw_day(today, stopwatch, settings, ui);
+    let (total, blocks) = stopwatch.blocks_in_day(today);
+
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(today.format(&settings.date_format).to_string()).heading());
+        ui.label(RichText::new(fmt_duration(total)).heading());
+    });
+
+    draw_block_table(&blocks, settings, ui);
 
     ui.separator();
 
@@ -98,14 +112,12 @@ fn draw_today(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui)
     }
 }
 
-fn draw_day(day: Date<Local>, stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) -> Duration {
-    let (total, blocks) = stopwatch.blocks_in_day(day);
+fn draw_block_table(blocks: &[Block], settings: &Settings, ui: &mut egui::Ui) {
+    if blocks.is_empty() {
+        return;
+    }
 
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(day.format(&settings.date_format).to_string()).heading());
-        ui.label(RichText::new(fmt_duration(total)).heading());
-    });
-    egui::Grid::new(day)
+    egui::Grid::new(blocks[0].id())
         .num_columns(4)
         .striped(true)
         .show(ui, |ui| {
@@ -124,13 +136,41 @@ fn draw_day(day: Date<Local>, stopwatch: &mut StopWatch, settings: &Settings, ui
                 ui.end_row();
             }
         });
-
-    total
 }
 
 fn draw_this_week(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
-    //TODO implement week display
-    ui.label("Unimplemented");
+    let today = Local::now();
+    let year = today.year();
+    let week = today.iso_week();
+    let mut weekday = settings.start_of_week.clone();
+
+    let mut grand_total = Duration::zero();
+
+    for _ in 0..7 {
+        let day = NaiveDate::from_isoywd(year, week.week(), weekday);
+        let day = Local.from_local_date(&day).unwrap();
+
+        let (total, blocks) = stopwatch.blocks_in_day(day);
+
+        let header = format!(
+            "{} - {}",
+            day.format(&settings.date_format).to_string(),
+            fmt_duration(total)
+        );
+        ui.collapsing(RichText::new(header).heading(), |ui| {
+            draw_block_table(&blocks, settings, ui);
+        });
+
+        weekday = weekday.succ();
+        grand_total = grand_total + total;
+    }
+
+    ui.separator();
+
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Grand Total:").heading());
+        ui.label(RichText::new(fmt_duration(grand_total)).heading());
+    });
 }
 
 fn draw_times(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {

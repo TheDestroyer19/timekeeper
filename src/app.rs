@@ -1,9 +1,9 @@
 use std::thread;
 
-use chrono::{Duration};
+use chrono::{Duration, Weekday};
 use eframe::{egui, epi};
 
-use crate::gui::{GuiState, draw_stopwatch};
+use crate::gui::{draw_stopwatch, GuiState};
 use crate::stopwatch::StopWatch;
 use crate::{APP_NAME, SETTINGS_KEY, STATE_KEY};
 
@@ -14,6 +14,8 @@ pub struct Settings {
     pub date_format: String,
     pub time_format: String,
 
+    pub start_of_week: Weekday,
+
     pub daily_target_hours: f32,
 }
 
@@ -22,6 +24,7 @@ impl Default for Settings {
         Self {
             date_format: "%y-%m-%d".into(),
             time_format: "%H:%M".into(),
+            start_of_week: Weekday::Mon,
             daily_target_hours: 8.0,
         }
     }
@@ -86,7 +89,10 @@ impl epi::App for TimeKeeperApp {
             draw_stopwatch(&mut self.stopwatch, &self.settings, ui);
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| self.state.draw_screen(&mut self.stopwatch, &mut self.settings, ui));
+        egui::CentralPanel::default().show(ctx, |ui| {
+            self.state
+                .draw_screen(&mut self.stopwatch, &mut self.settings, ui)
+        });
     }
 }
 

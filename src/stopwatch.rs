@@ -15,6 +15,10 @@ impl Block {
     pub fn duration(&self) -> Duration {
         self.end - self.start
     }
+
+    pub fn id(&self) -> usize {
+        self.id
+    }
 }
 
 #[derive(Default)]
