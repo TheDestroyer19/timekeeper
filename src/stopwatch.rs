@@ -17,10 +17,8 @@ impl Block {
     }
 }
 
-#[derive(Default, serde::Deserialize, serde::Serialize)]
+#[derive(Default)]
 pub struct StopWatch {
-    current: Option<Block>,
-    #[serde(skip)]
     database: Option<Connection>,
 }
 
@@ -54,11 +52,13 @@ impl StopWatch {
                     )
                 {
                     conn.execute(
-                        "CREATE TABLE time_blocks (
-                            id    INTEGER PRIMARY KEY,
-                            start TEXT NOT NULL,
-                            end   TEXT NOT NULL
-                        )",
+                        r#"CREATE TABLE "time_blocks" (
+                            "id"	INTEGER,
+                            "start"	TEXT NOT NULL,
+                            "end"	TEXT NOT NULL,
+                            "running"	TEXT CHECK("running" = 'Y') UNIQUE,
+                            PRIMARY KEY("id")
+                        );"#,
                         [], // empty list of parameters.
                     )
                     .unwrap();
@@ -73,31 +73,43 @@ impl StopWatch {
     }
 
     pub fn start(&mut self) {
-        if self.current.is_none() {
-            self.current = Some(Block {
-                id: 0,
-                start: Local::now(),
-                end: Local::now(),
-            })
-        } else {
-            tracing::warn!("Called start on an already running stopwatch");
-        }
+        let now = Local::now();
+        self.insert_block(Block {
+            id: 0,
+            start: now,
+            end: now,
+        }, true);
     }
 
     pub fn stop(&mut self) {
-        if let Some(mut block) = self.current.take() {
-            block.end = Local::now();
-            self.insert_block(block);
+        if let Some(block) = self.current() {
+            self.update_block(block, false).unwrap();
         } else {
-            tracing::warn!("Called stop on an already stopped stopwatch");
+            tracing::warn!("Tried to stop the stopwatch when it wasn't running")
         }
     }
 
     pub fn current(&mut self) -> Option<Block> {
-        if let Some(block) = &mut self.current {
-            block.end = Local::now();
+        let conn = self.conn();
+        let current = conn.query_row(
+            "SELECT id, start, end FROM time_blocks WHERE running is 'Y'", 
+            [],
+            |row| Ok(Block {
+                id: row.get(0)?,
+                start: row.get(1)?,
+                end: row.get(2)?,
+            })
+        );
+
+        match current {
+            Ok(mut block) => {
+                block.end = Local::now();
+                self.update_block(block.clone(), true).unwrap();
+                Some(block)
+            },
+            Err(rusqlite::Error::QueryReturnedNoRows) => None,
+            Err(e) => { tracing::error!("Database error: {}", e); None },
         }
-        self.current.clone()
     }
 
     pub fn delete_block(&mut self, block: Block) {
@@ -134,7 +146,7 @@ impl StopWatch {
         let before = day.and_hms(0, 0, 0);
         let after = before + Duration::days(1);
 
-        let mut rows: Vec<Block> = {
+        let rows: Vec<Block> = {
             let conn = self.conn();
             let mut stmt = conn
                 .prepare("SELECT id, start, end 
@@ -156,14 +168,6 @@ impl StopWatch {
                 .collect()
         };
 
-        if let Some(current) = &mut self.current {
-            current.end = Local::now();
-
-            if current.start > before && current.start < after {
-                rows.push(current.clone());
-            }
-        }
-
         let total = rows.iter().fold(Duration::zero(), |a, b| a + b.duration());
 
         (total, rows)
@@ -181,23 +185,48 @@ impl StopWatch {
 
         Duration::seconds(stuff.unwrap_or(0.0) as i64)
     }
+}
 
+//Private functions
+//seperate impl block to add a little more order to VSCode's outline
+impl StopWatch {
     fn conn(&self) -> &Connection {
         self.database
             .as_ref()
             .expect("Database connection has been initialized")
     }
 
-    fn insert_block(&self, block: Block) {
-        let database = self
-            .database
-            .as_ref()
-            .expect("Database connection has been initialized");
+    fn insert_block(&self, block: Block, running: bool) {
+        let database = self.conn();
+        let running = if running {
+            Some("Y")
+        } else {
+            None
+        };
+
         database
             .execute(
-                "INSERT INTO time_blocks (start, end) VALUES (?1, ?2)",
-                [block.start, block.end],
+                "INSERT INTO time_blocks (start, end, running) VALUES (?1, ?2, ?3)",
+                rusqlite::params![block.start, block.end, running],
             )
             .unwrap();
+    }
+
+    fn update_block(&self, block: Block, running: bool) -> Result<(), rusqlite::Error> {
+        let database = self.conn();
+        let running = if running {
+            Some("Y")
+        } else {
+            None
+        };
+        
+        database
+            .execute(
+                "UPDATE time_blocks 
+                SET start = ?2, end = ?3, running = ?4
+                WHERE id = ?1",
+                rusqlite::params![block.id, block.start, block.end, running]
+            )
+            .map(|_| ())
     }
 }

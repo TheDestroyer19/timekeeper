@@ -1,6 +1,6 @@
 use std::thread;
 
-use chrono::{Datelike, Duration, Local, TimeZone};
+use chrono::{Duration, Local, TimeZone, Date};
 use eframe::egui::{DragValue, RichText};
 use eframe::{egui, epi};
 
@@ -30,6 +30,7 @@ pub struct TimeKeeperApp {
 
     daily_target_hours: f32,
 
+    #[serde(skip)]
     stopwatch: StopWatch,
 
     //app management stuff
@@ -133,18 +134,34 @@ impl TimeKeeperApp {
 
     fn draw_today(&mut self, ui: &mut egui::Ui) {
         let now = Local::now();
-
         let today = now.date();
 
-        let current = self.stopwatch.current();
+        let total = self.draw_day(today, ui);
 
-        let (total, blocks) = self.stopwatch.blocks_in_day(today);
+        ui.separator();
+
+        let current = self.stopwatch.current();
+        
+        if self.daily_target_hours > 0.01 && current.is_some() {
+            let goal = Duration::minutes((self.daily_target_hours * 60.0) as i64);
+            let left = goal - total;
+            let target = now + left;
+            ui.label(format!(
+                "You will reach {} today at {}",
+                fmt_duration(goal),
+                target.format(&self.time_format)
+            ));
+        }
+    }
+
+    fn draw_day(&mut self, day: Date<Local>, ui: &mut egui::Ui) -> Duration {
+        let (total, blocks) = self.stopwatch.blocks_in_day(day);
 
         ui.horizontal(|ui| {
-            ui.label(RichText::new(today.format(&self.date_format).to_string()).heading());
+            ui.label(RichText::new(day.format(&self.date_format).to_string()).heading());
             ui.label(RichText::new(fmt_duration(total)).heading());
         });
-        egui::Grid::new(today.weekday())
+        egui::Grid::new(day)
             .num_columns(4)
             .striped(true)
             .show(ui, |ui| {
@@ -164,22 +181,12 @@ impl TimeKeeperApp {
                 }
             });
 
-        ui.separator();
-
-        if self.daily_target_hours > 0.01 && current.is_some() {
-            let goal = Duration::minutes((self.daily_target_hours * 60.0) as i64);
-            let left = goal - total;
-            let target = now + left;
-            ui.label(format!(
-                "You will reach {} today at {}",
-                fmt_duration(goal),
-                target.format(&self.time_format)
-            ));
-        }
+        total
     }
 
     fn draw_this_week(&mut self, ui: &mut egui::Ui) {
-        todo!()
+        //TODO implement week display
+        ui.label("Unimplemented");
     }
 
     fn draw_times(&mut self, ui: &mut egui::Ui) {
