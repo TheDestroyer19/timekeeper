@@ -130,30 +130,39 @@ impl StopWatch {
         .collect()
     }
 
-    pub fn blocks_in_day(&self, day: Date<Local>) -> (Duration, Vec<Block>) {
-        let conn = self.conn();
+    pub fn blocks_in_day(&mut self, day: Date<Local>) -> (Duration, Vec<Block>) {
         let before = day.and_hms(0, 0, 0);
         let after = before + Duration::days(1);
-        let mut stmt = conn
-            .prepare(
-                "
-            SELECT id, start, end 
-            FROM time_blocks
-            WHERE JulianDay(start) > JulianDay(?1) AND JulianDay(start) < JulianDay(?2)
-        ",
-            )
-            .unwrap();
-        let rows: Vec<Block> = stmt
-            .query_map([before, after], |row| {
-                Ok(Block {
-                    id: row.get(0)?,
-                    start: row.get(1)?,
-                    end: row.get(2)?,
+
+        let mut rows: Vec<Block> = {
+            let conn = self.conn();
+            let mut stmt = conn
+                .prepare("SELECT id, start, end 
+                    FROM time_blocks
+                    WHERE JulianDay(start) > JulianDay(?1) 
+                    AND JulianDay(start) < JulianDay(?2)")
+                .unwrap();
+
+            stmt
+                .query_map([before, after], |row| {
+                    Ok(Block {
+                        id: row.get(0)?,
+                        start: row.get(1)?,
+                        end: row.get(2)?,
+                    })
                 })
-            })
-            .unwrap()
-            .map(|b| b.unwrap())
-            .collect();
+                .unwrap()
+                .map(|b| b.unwrap())
+                .collect()
+        };
+
+        if let Some(current) = &mut self.current {
+            current.end = Local::now();
+
+            if current.start > before && current.start < after {
+                rows.push(current.clone());
+            }
+        }
 
         let total = rows.iter().fold(Duration::zero(), |a, b| a + b.duration());
 

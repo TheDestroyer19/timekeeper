@@ -7,11 +7,18 @@ use eframe::{egui, epi};
 use crate::stopwatch::StopWatch;
 use crate::APP_NAME;
 
-#[derive(PartialEq, Eq)]
+#[derive(serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 enum AppScreen {
     Today,
-    Time,
+    ThisWeek,
+    AllTime,
     Settings,
+}
+
+impl Default for AppScreen {
+    fn default() -> Self {
+        AppScreen::Today
+    }
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -26,7 +33,6 @@ pub struct TimeKeeperApp {
     stopwatch: StopWatch,
 
     //app management stuff
-    #[serde(skip)]
     screen: AppScreen,
 }
 
@@ -37,7 +43,7 @@ impl Default for TimeKeeperApp {
             time_format: "%H:%M".into(),
             daily_target_hours: 8.0,
             stopwatch: StopWatch::default(),
-            screen: AppScreen::Time,
+            screen: AppScreen::default(),
         }
     }
 }
@@ -85,7 +91,8 @@ impl epi::App for TimeKeeperApp {
 
         egui::CentralPanel::default().show(ctx, |ui| match self.screen {
             AppScreen::Today => self.draw_today(ui),
-            AppScreen::Time => self.draw_times(ui),
+            AppScreen::ThisWeek => self.draw_this_week(ui),
+            AppScreen::AllTime => self.draw_times(ui),
             AppScreen::Settings => self.draw_settings(ui),
         });
     }
@@ -95,7 +102,8 @@ impl TimeKeeperApp {
     fn draw_tabs(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.selectable_value(&mut self.screen, AppScreen::Today, "Today");
-            ui.selectable_value(&mut self.screen, AppScreen::Time, "Time");
+            ui.selectable_value(&mut self.screen, AppScreen::ThisWeek, "This Week");
+            ui.selectable_value(&mut self.screen, AppScreen::AllTime, "History");
             ui.selectable_value(&mut self.screen, AppScreen::Settings, "Settings");
         });
     }
@@ -130,11 +138,7 @@ impl TimeKeeperApp {
 
         let current = self.stopwatch.current();
 
-        let (mut total, blocks) = self.stopwatch.blocks_in_day(today);
-
-        if let Some(current) = &current {
-            total = total + current.duration();
-        }
+        let (total, blocks) = self.stopwatch.blocks_in_day(today);
 
         ui.horizontal(|ui| {
             ui.label(RichText::new(today.format(&self.date_format).to_string()).heading());
@@ -172,6 +176,10 @@ impl TimeKeeperApp {
                 target.format(&self.time_format)
             ));
         }
+    }
+
+    fn draw_this_week(&mut self, ui: &mut egui::Ui) {
+        todo!()
     }
 
     fn draw_times(&mut self, ui: &mut egui::Ui) {
