@@ -46,7 +46,9 @@ impl GuiState {
 }
 
 pub fn draw_todays_goal(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
-    let goal = Some((settings.daily_target_hours * 60.0) as i64).filter(|n| *n > 0).map(Duration::minutes);
+    let goal = Some((settings.daily_target_hours * 60.0) as i64)
+        .filter(|n| *n > 0)
+        .map(Duration::minutes);
     let goal = match goal {
         Some(goal) => goal,
         None => return,
@@ -59,10 +61,24 @@ pub fn draw_todays_goal(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut
     let projected = now + time_left;
 
     let text = match (current, time_left.cmp(&Duration::zero())) {
-        (_, std::cmp::Ordering::Less) => format!("You've reached your goal of {} today. Huzzah!", fmt_duration(goal)),//TODO report how much more than the goal today
-        (_, std::cmp::Ordering::Equal) => format!("You've reached your goal of {} today. Huzzah!", fmt_duration(goal)),
-        (true, std::cmp::Ordering::Greater) => format!("You will reach {} today at {}", fmt_duration(goal), projected.format(&settings.time_format)),
-        (false, std::cmp::Ordering::Greater) => format!("If you start right now, you can reach {} today at {}", fmt_duration(goal), projected.format(&settings.time_format)),
+        (_, std::cmp::Ordering::Less) => format!(
+            "You've reached your goal of {} today. Huzzah!",
+            fmt_duration(goal)
+        ), //TODO report how much more than the goal today
+        (_, std::cmp::Ordering::Equal) => format!(
+            "You've reached your goal of {} today. Huzzah!",
+            fmt_duration(goal)
+        ),
+        (true, std::cmp::Ordering::Greater) => format!(
+            "You will reach {} today at {}",
+            fmt_duration(goal),
+            projected.format(&settings.time_format)
+        ),
+        (false, std::cmp::Ordering::Greater) => format!(
+            "If you start right now, you can reach {} today at {}",
+            fmt_duration(goal),
+            projected.format(&settings.time_format)
+        ),
     };
 
     ui.label(text);
@@ -187,59 +203,57 @@ fn draw_this_week(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui:
 }
 
 fn draw_times(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
-    egui::Grid::new("the-grid")
-        .num_columns(7)
-        .striped(true)
-        .show(ui, |ui| {
-            let mut to_delete = None;
-            let mut prev_date = Local.ymd(2000, 1, 1);
+    egui::ScrollArea::vertical().show(ui, |ui| {
+        egui::Grid::new("the-grid")
+            .num_columns(7)
+            .striped(true)
+            .show(ui, |ui| {
+                let mut to_delete = None;
+                let mut prev_date = Local.ymd(2000, 1, 1);
 
-            for block in stopwatch.all_blocks() {
-                let date = block.start.date();
-                let end_date = block.end.date();
-                let duration = block.end - block.start;
+                for block in stopwatch.all_blocks() {
+                    let date = block.start.date();
+                    let end_date = block.end.date();
+                    let duration = block.end - block.start;
 
-                if prev_date != date {
-                    ui.label(date.format(&settings.date_format).to_string());
-                    prev_date = date;
-                } else {
-                    ui.label("");
+                    if prev_date != date {
+                        ui.label(date.format(&settings.date_format).to_string());
+                        prev_date = date;
+                    } else {
+                        ui.label("");
+                    }
+
+                    ui.label(block.start.format(&settings.time_format).to_string());
+
+                    ui.label("->");
+
+                    if date != end_date {
+                        ui.label(end_date.format(&settings.date_format).to_string());
+                    } else {
+                        ui.label("");
+                    }
+
+                    ui.label(block.end.format(&settings.time_format).to_string());
+
+                    ui.label(fmt_duration(duration));
+
+                    if ui.button("X").clicked() {
+                        to_delete = Some(block);
+                    }
+
+                    ui.end_row();
                 }
 
-                ui.label(block.start.format(&settings.time_format).to_string());
-
-                ui.label("->");
-
-                if date != end_date {
-                    ui.label(end_date.format(&settings.date_format).to_string());
-                } else {
-                    ui.label("");
+                if let Some(index) = to_delete {
+                    stopwatch.delete_block(index);
                 }
-
-                ui.label(block.end.format(&settings.time_format).to_string());
-
-                ui.label(fmt_duration(duration));
-
-                if ui.button("X").clicked() {
-                    to_delete = Some(block);
-                }
-
-                ui.end_row();
-            }
-
+            });
+        
+        ui.horizontal(|ui| {
             ui.label(RichText::new("Total").heading());
-            ui.label("");
-            ui.label("");
-            ui.label("");
-            ui.label("");
             ui.label(fmt_duration(stopwatch.total_time()));
-
-            ui.end_row();
-
-            if let Some(index) = to_delete {
-                stopwatch.delete_block(index);
-            }
-        });
+        })
+    });
 }
 
 fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) {
