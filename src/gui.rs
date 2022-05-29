@@ -3,7 +3,8 @@ use eframe::egui::{self, DragValue, RichText};
 
 use crate::{
     app::Settings,
-    stopwatch::{Block, StopWatch},
+    stopwatch::StopWatch,
+    database::Block,
 };
 
 #[derive(serde::Deserialize, serde::Serialize, PartialEq, Eq)]

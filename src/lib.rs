@@ -5,6 +5,7 @@
 mod app;
 mod gui;
 mod stopwatch;
+mod database;
 pub use app::TimeKeeperApp;
 
 const APP_NAME: &'static str = "TimeKeeper";

@@ -64,9 +64,6 @@ impl epi::App for TimeKeeperApp {
             self.settings = epi::get_value(storage, SETTINGS_KEY).unwrap_or_default();
         }
 
-        //open database, and give to stopwatch
-        self.stopwatch.init_database();
-
         //start up bg thread
         let frame = frame.clone();
         thread::spawn(|| bg_timer(frame));
