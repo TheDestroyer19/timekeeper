@@ -45,6 +45,29 @@ impl GuiState {
     }
 }
 
+pub fn draw_todays_goal(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
+    let goal = Some((settings.daily_target_hours * 60.0) as i64).filter(|n| *n > 0).map(Duration::minutes);
+    let goal = match goal {
+        Some(goal) => goal,
+        None => return,
+    };
+
+    let current = stopwatch.current().is_some();
+    let now = Local::now();
+    let (time_today, _) = stopwatch.blocks_in_day(now.date());
+    let time_left = goal - time_today;
+    let projected = now + time_left;
+
+    let text = match (current, time_left.cmp(&Duration::zero())) {
+        (_, std::cmp::Ordering::Less) => format!("You've reached your goal of {} today. Huzzah!", fmt_duration(goal)),//TODO report how much more than the goal today
+        (_, std::cmp::Ordering::Equal) => format!("You've reached your goal of {} today. Huzzah!", fmt_duration(goal)),
+        (true, std::cmp::Ordering::Greater) => format!("You will reach {} today at {}", fmt_duration(goal), projected.format(&settings.time_format)),
+        (false, std::cmp::Ordering::Greater) => format!("If you start right now, you can reach {} today at {}", fmt_duration(goal), projected.format(&settings.time_format)),
+    };
+
+    ui.label(text);
+}
+
 pub fn draw_stopwatch(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
     ui.with_layout(
         egui::Layout::top_down_justified(egui::Align::Center),
@@ -58,7 +81,10 @@ pub fn draw_stopwatch(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut e
                     fmt_duration(duration)
                 ));
 
+                draw_todays_goal(stopwatch, settings, ui);
+
                 if ui.button(RichText::new("Stop").size(20.0)).clicked() {
+                    draw_todays_goal(stopwatch, settings, ui);
                     stopwatch.stop();
                 }
             } else if ui.button(RichText::new("Start").size(20.0)).clicked() {
@@ -97,19 +123,6 @@ fn draw_today(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui)
     draw_block_table(&blocks, settings, ui);
 
     ui.separator();
-
-    let current = stopwatch.current();
-
-    if settings.daily_target_hours > 0.01 && current.is_some() {
-        let goal = Duration::minutes((settings.daily_target_hours * 60.0) as i64);
-        let left = goal - total;
-        let target = now + left;
-        ui.label(format!(
-            "You will reach {} today at {}",
-            fmt_duration(goal),
-            target.format(&settings.time_format)
-        ));
-    }
 }
 
 fn draw_block_table(blocks: &[Block], settings: &Settings, ui: &mut egui::Ui) {
