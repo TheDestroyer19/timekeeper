@@ -221,7 +221,12 @@ fn build_database(conn: &Connection) -> Result<(), anyhow::Error> {
             "name"	TEXT NOT NULL UNIQUE,
             "protected"	TEXT CHECK("protected" = 'Y'),
             PRIMARY KEY("id")
-        );
+        );"#,
+        [], // empty list of parameters.
+    )
+    .context("Failed to initailize tags table")?;
+    conn.execute(
+        r#"
         CREATE TABLE "time_blocks" (
             "id"	INTEGER,
             "start"	TEXT NOT NULL,
@@ -231,8 +236,9 @@ fn build_database(conn: &Connection) -> Result<(), anyhow::Error> {
             FOREIGN KEY("tag") REFERENCES "tags"("id"),
             PRIMARY KEY("id")
         );"#,
-        [], // empty list of parameters.
+        [],
     )
-    .context("Failed to initailize database structure")
-    .map(|_| ())
+    .context("Failed to initailize time_blocks table")?;
+
+    Ok(())
 }
