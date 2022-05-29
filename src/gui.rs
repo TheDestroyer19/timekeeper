@@ -169,36 +169,39 @@ fn draw_block_table(blocks: &[Block], settings: &Settings, ui: &mut egui::Ui) {
 
 fn draw_this_week(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
     let today = Local::now();
+    draw_week(today, settings, stopwatch, ui);
+}
+
+fn draw_week(today: chrono::DateTime<Local>, settings: &Settings, stopwatch: &mut StopWatch, ui: &mut egui::Ui) {
     let year = today.year();
     let week = today.iso_week();
     let mut weekday = settings.start_of_week.clone();
-
     let mut grand_total = Duration::zero();
 
-    for _ in 0..7 {
-        let day = NaiveDate::from_isoywd(year, week.week(), weekday);
-        let day = Local.from_local_date(&day).unwrap();
-
-        let (total, blocks) = stopwatch.blocks_in_day(day);
-
-        let header = format!(
-            "{} - {}",
-            day.format(&settings.date_format).to_string(),
-            fmt_duration(total)
-        );
-        ui.collapsing(RichText::new(header).heading(), |ui| {
-            draw_block_table(&blocks, settings, ui);
+    egui::ScrollArea::vertical().show(ui, |ui| {
+        for _ in 0..7 {
+            let day = NaiveDate::from_isoywd(year, week.week(), weekday);
+            let day = Local.from_local_date(&day).unwrap();
+    
+            let (total, blocks) = stopwatch.blocks_in_day(day);
+    
+            let header = format!(
+                "{} - {}",
+                day.format(&settings.date_format).to_string(),
+                fmt_duration(total)
+            );
+            ui.collapsing(RichText::new(header).heading(), |ui| {
+                draw_block_table(&blocks, settings, ui);
+            });
+    
+            weekday = weekday.succ();
+            grand_total = grand_total + total;
+        }
+        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Grand Total:").heading());
+            ui.label(RichText::new(fmt_duration(grand_total)).heading());
         });
-
-        weekday = weekday.succ();
-        grand_total = grand_total + total;
-    }
-
-    ui.separator();
-
-    ui.horizontal(|ui| {
-        ui.label(RichText::new("Grand Total:").heading());
-        ui.label(RichText::new(fmt_duration(grand_total)).heading());
     });
 }
 
