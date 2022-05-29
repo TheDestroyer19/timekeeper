@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use chrono::{Datelike, Duration, Local, NaiveDate, TimeZone};
 use eframe::egui::{self, DragValue, RichText};
 
@@ -89,7 +91,8 @@ pub fn draw_stopwatch(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut e
     ui.with_layout(
         egui::Layout::top_down_justified(egui::Align::Center),
         |ui| {
-            if let Some(block) = stopwatch.current() {
+            let current = stopwatch.current();
+            if let Some(block) = &current {
                 let duration = block.duration();
 
                 ui.label(format!(
@@ -97,11 +100,12 @@ pub fn draw_stopwatch(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut e
                     block.start.format(&settings.time_format),
                     fmt_duration(duration)
                 ));
+            };
+            
+            draw_todays_goal(stopwatch, settings, ui);
 
-                draw_todays_goal(stopwatch, settings, ui);
-
+            if current.is_some() {
                 if ui.button(RichText::new("Stop").size(20.0)).clicked() {
-                    draw_todays_goal(stopwatch, settings, ui);
                     stopwatch.stop();
                 }
             } else if ui.button(RichText::new("Start").size(20.0)).clicked() {
@@ -191,7 +195,9 @@ fn draw_week(today: chrono::DateTime<Local>, settings: &Settings, stopwatch: &mu
                 day.format(&settings.date_format).to_string(),
                 fmt_duration(total)
             );
-            ui.collapsing(RichText::new(header).heading(), |ui| {
+            egui::CollapsingHeader::new(RichText::new(header).heading())
+                .id_source(day)
+                .show(ui, |ui| {
                 draw_block_table(&blocks, settings, ui);
             });
     
