@@ -1,6 +1,19 @@
-use chrono::{Date, Duration, Local};
+use chrono::{Date, Duration, Local, NaiveDate, TimeZone, Datelike};
 
+use crate::app::Settings;
 use crate::database::{Database, Block};
+
+/// wrapper for details about one day
+pub struct DayBlock {
+    pub day: Date<Local>,
+    pub blocks: Vec<Block>,
+    pub total: Duration,
+}
+impl Default for DayBlock {
+    fn default() -> Self {
+        Self { day: Local::now().date(), blocks: Default::default(), total: Duration::zero() }
+    }
+}
 
 pub struct StopWatch {
     database: Database,
@@ -80,6 +93,29 @@ impl StopWatch {
                 (total, blocks)
             }
         }
+    }
+
+    pub fn blocks_in_week(&mut self, day: Date<Local>, settings: &Settings) -> (Duration, [DayBlock; 7]) {
+        let mut days = <[DayBlock; 7]>::default();
+        let year = day.year();
+        let week = day.iso_week();
+        let mut weekday = settings.start_of_week.clone();
+        let mut grand_total = Duration::zero();
+        
+        for dayblock in &mut days {
+            let day = NaiveDate::from_isoywd(year, week.week(), weekday);
+            let day = Local.from_local_date(&day).unwrap();
+    
+            let (total, blocks) = self.blocks_in_day(day);
+
+            dayblock.blocks = blocks;
+            grand_total = grand_total + total;
+            dayblock.total = total;
+            dayblock.day = day;
+            weekday = weekday.succ();
+        }
+
+        (grand_total, days)
     }
 
     pub fn total_time(&self) -> Duration {

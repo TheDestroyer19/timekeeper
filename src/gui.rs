@@ -1,8 +1,7 @@
-use std::hash::Hash;
-
-use chrono::{Datelike, Duration, Local, NaiveDate, TimeZone};
+use chrono::{Duration, Local, TimeZone};
 use eframe::egui::{self, DragValue, RichText};
 
+use crate::stopwatch::DayBlock;
 use crate::{
     app::Settings,
     stopwatch::StopWatch,
@@ -177,19 +176,11 @@ fn draw_this_week(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui:
     draw_week(today, settings, stopwatch, ui);
 }
 
-fn draw_week(today: chrono::DateTime<Local>, settings: &Settings, stopwatch: &mut StopWatch, ui: &mut egui::Ui) {
-    let year = today.year();
-    let week = today.iso_week();
-    let mut weekday = settings.start_of_week.clone();
-    let mut grand_total = Duration::zero();
-
+fn draw_week(day: chrono::DateTime<Local>, settings: &Settings, stopwatch: &mut StopWatch, ui: &mut egui::Ui) {
     egui::ScrollArea::vertical().show(ui, |ui| {
-        for _ in 0..7 {
-            let day = NaiveDate::from_isoywd(year, week.week(), weekday);
-            let day = Local.from_local_date(&day).unwrap();
-    
-            let (total, blocks) = stopwatch.blocks_in_day(day);
-    
+        let (total, blocks) = stopwatch.blocks_in_week(day.date(), settings);
+
+        for DayBlock { day, blocks, total } in blocks {
             let header = format!(
                 "{} - {}",
                 day.format(&settings.date_format).to_string(),
@@ -200,14 +191,11 @@ fn draw_week(today: chrono::DateTime<Local>, settings: &Settings, stopwatch: &mu
                 .show(ui, |ui| {
                 draw_block_table(&blocks, settings, ui);
             });
-    
-            weekday = weekday.succ();
-            grand_total = grand_total + total;
         }
         ui.separator();
         ui.horizontal(|ui| {
             ui.label(RichText::new("Grand Total:").heading());
-            ui.label(RichText::new(fmt_duration(grand_total)).heading());
+            ui.label(RichText::new(fmt_duration(total)).heading());
         });
     });
 }
