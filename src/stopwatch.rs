@@ -9,6 +9,7 @@ pub struct Block {
     id: usize,
     pub start: DateTime<Local>,
     pub end: DateTime<Local>,
+    pub tag: Option<Tag>,
 }
 
 impl Block {
@@ -18,6 +19,21 @@ impl Block {
 
     pub fn id(&self) -> usize {
         self.id
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
+pub struct Tag {
+    id: usize,
+    name: String,
+}
+impl Tag {
+    pub fn id(&self) -> usize {
+        self.id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
     }
 }
 
@@ -56,11 +72,19 @@ impl StopWatch {
                     )
                 {
                     conn.execute(
-                        r#"CREATE TABLE "time_blocks" (
+                        r#"CREATE TABLE "tags" (
+                            "id"	INTEGER NOT NULL,
+                            "name"	TEXT NOT NULL UNIQUE,
+                            "protected"	TEXT CHECK("protected" = 'Y'),
+                            PRIMARY KEY("id")
+                        );
+                        CREATE TABLE "time_blocks" (
                             "id"	INTEGER,
                             "start"	TEXT NOT NULL,
                             "end"	TEXT NOT NULL,
                             "running"	TEXT CHECK("running" = 'Y') UNIQUE,
+                            "tag"	INTEGER,
+                            FOREIGN KEY("tag") REFERENCES "tags"("id"),
                             PRIMARY KEY("id")
                         );"#,
                         [], // empty list of parameters.
@@ -83,6 +107,7 @@ impl StopWatch {
                 id: 0,
                 start: now,
                 end: now,
+                tag: None,
             },
             true,
         );
@@ -99,13 +124,22 @@ impl StopWatch {
     pub fn current(&mut self) -> Option<Block> {
         let conn = self.conn();
         let current = conn.query_row(
-            "SELECT id, start, end FROM time_blocks WHERE running is 'Y'",
+            "
+            SELECT 
+                block.id, start, end, tag.id, tag.name 
+            FROM time_blocks block 
+            LEFT JOIN tags tag ON block.tag = tag.id
+            WHERE running is 'Y'",
             [],
             |row| {
+                let id: Option<usize> = row.get(3)?;
+                let name: Option<String> = row.get(4)?;
+                let tag = id.map(|id| Tag { id, name: name.expect("tags.name should not be null when tags.id is not null")});
                 Ok(Block {
                     id: row.get(0)?,
                     start: row.get(1)?,
                     end: row.get(2)?,
+                    tag,
                 })
             },
         );
@@ -140,13 +174,21 @@ impl StopWatch {
             .as_ref()
             .expect("Database connection has been initialized");
         let mut stmt = database
-            .prepare("SELECT id, start, end FROM time_blocks")
+            .prepare("
+                        SELECT 
+                            block.id, start, end, tag.id, tag.name 
+                        FROM time_blocks block 
+                        LEFT JOIN tags tag ON block.tag = tag.id")
             .unwrap();
         stmt.query_map([], |row| {
+            let id: Option<usize> = row.get(3)?;
+            let name: Option<String> = row.get(4)?;
+            let tag = id.map(|id| Tag { id, name: name.expect("tags.name should not be null when tags.id is not null")});
             Ok(Block {
                 id: row.get(0)?,
                 start: row.get(1)?,
                 end: row.get(2)?,
+                tag,
             })
         })
         .unwrap()
@@ -162,18 +204,25 @@ impl StopWatch {
             let conn = self.conn();
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, start, end 
-                    FROM time_blocks
+                    "
+                    SELECT 
+                        block.id, start, end, tag.id, tag.name 
+                    FROM time_blocks block 
+                    LEFT JOIN tags tag ON block.tag = tag.id
                     WHERE JulianDay(start) > JulianDay(?1) 
                     AND JulianDay(start) < JulianDay(?2)",
                 )
                 .unwrap();
 
             stmt.query_map([before, after], |row| {
+                let id: Option<usize> = row.get(3)?;
+                let name: Option<String> = row.get(4)?;
+                let tag = id.map(|id| Tag { id, name: name.expect("tags.name should not be null when tags.id is not null")});
                 Ok(Block {
                     id: row.get(0)?,
                     start: row.get(1)?,
                     end: row.get(2)?,
+                    tag,
                 })
             })
             .unwrap()
