@@ -127,4 +127,21 @@ impl StopWatch {
             }
         }
     }
+
+    pub(crate) fn all_tags(&self) -> Vec<crate::database::Tag> {
+        match self.database.all_tags() {
+            Ok(value) => value,
+            Err(e) => {
+                tracing::warn!("{:#}", e);
+                Vec::new()
+            }
+        }
+    }
+
+    pub(crate) fn update_block(&self, block: Block) {
+        match self.database.blocks().update(block) {
+            Ok(_) => (),
+            Err(e) => tracing::warn!("{:#}", e),
+        }
+    }
 }

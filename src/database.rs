@@ -27,15 +27,11 @@ impl Block {
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct Tag {
     id: usize,
-    name: String,
+    pub name: String,
 }
-impl Tag {
-    pub fn id(&self) -> usize {
-        self.id
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
+impl PartialEq for Tag {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
     }
 }
 
@@ -71,6 +67,21 @@ impl Database {
         Blocks {
             conn: &self.conn
         }
+    }
+
+    pub fn all_tags(&self) -> Result<Vec<Tag>, anyhow::Error> {
+        self.conn.prepare("
+                SELECT
+                    id, name
+                FROM tags")
+            .context("Preparing to get all tags")?
+            .query_map([], |row| Ok(Tag {
+                id: row.get(0)?,
+                name: row.get(1)?,
+            }))
+            .context("Trying to get all tags")?
+            .map(|r| r.context("Trying to map row to Tag struct"))
+            .collect()
     }
 }
 

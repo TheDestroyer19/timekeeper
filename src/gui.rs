@@ -1,6 +1,7 @@
 use chrono::{Duration, Local, TimeZone};
 use eframe::egui::{self, DragValue, RichText};
 
+use crate::database::Tag;
 use crate::stopwatch::DayBlock;
 use crate::{
     app::Settings,
@@ -45,6 +46,11 @@ impl GuiState {
             GuiState::Settings => draw_settings(settings, ui),
         }
     }
+}
+
+enum GuiMessage {
+    None,
+    ChangedBlock(Block),
 }
 
 pub fn draw_todays_goal(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
@@ -140,21 +146,28 @@ fn draw_today(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui)
         ui.label(RichText::new(fmt_duration(total)).heading());
     });
 
-    draw_block_table(&blocks, settings, ui);
+    let message = draw_block_table(blocks, &stopwatch.all_tags(), settings, ui);
+
+    match message {
+        GuiMessage::None => (),
+        GuiMessage::ChangedBlock(block) => stopwatch.update_block(block),
+    }
 
     ui.separator();
 }
 
-fn draw_block_table(blocks: &[Block], settings: &Settings, ui: &mut egui::Ui) {
+fn draw_block_table(blocks: Vec<Block>, tags: &[Tag], settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
     if blocks.is_empty() {
-        return;
+        return GuiMessage::None;
     }
 
+    let mut message = GuiMessage::None;
+
     egui::Grid::new(blocks[0].id())
-        .num_columns(4)
+        .num_columns(5)
         .striped(true)
         .show(ui, |ui| {
-            for block in blocks {
+            for mut block in blocks {
                 ui.label(block.start.format(&settings.time_format).to_string());
                 ui.label("->");
                 if block.start.date() == block.end.date() {
@@ -166,9 +179,32 @@ fn draw_block_table(blocks: &[Block], settings: &Settings, ui: &mut egui::Ui) {
                     });
                 }
                 ui.label(fmt_duration(block.duration()));
+
+                let tag_text = if let Some(tag) = &block.tag {
+                    &tag.name
+                } else {
+                    ""
+                };
+
+                let old_tag = block.tag.clone();
+                egui::ComboBox::from_id_source(block.id())
+                    .selected_text(tag_text)
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut block.tag, None, "Remove tag");
+                        for tag in tags {
+                            ui.selectable_value(&mut block.tag, Some(tag.clone()), &tag.name);
+                        }
+                    });
+
+                if old_tag != block.tag {
+                    message = GuiMessage::ChangedBlock(block);
+                }
+
                 ui.end_row();
             }
         });
+
+        message
 }
 
 fn draw_this_week(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
@@ -189,7 +225,7 @@ fn draw_week(day: chrono::DateTime<Local>, settings: &Settings, stopwatch: &mut 
             egui::CollapsingHeader::new(RichText::new(header).heading())
                 .id_source(day)
                 .show(ui, |ui| {
-                draw_block_table(&blocks, settings, ui);
+                draw_block_table(blocks, &stopwatch.all_tags(), settings, ui);
             });
         }
         ui.separator();
