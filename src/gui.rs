@@ -236,7 +236,9 @@ fn draw_week(day: chrono::Date<Local>, settings: &Settings, stopwatch: &mut Stop
     egui::ScrollArea::vertical().show(ui, |ui| {
         let (total, blocks) = stopwatch.blocks_in_week(day, settings);
 
+
         for DayBlock { day, blocks, total } in blocks {
+            if total.is_zero() { continue; }
             let header = format!(
                 "{} - {}",
                 day.format(&settings.date_format).to_string(),
@@ -250,7 +252,7 @@ fn draw_week(day: chrono::Date<Local>, settings: &Settings, stopwatch: &mut Stop
         }
         ui.separator();
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Grand Total:").heading());
+            ui.label(RichText::new("Total:").heading());
             ui.label(RichText::new(fmt_duration(total)).heading());
         });
     });
@@ -283,9 +285,22 @@ fn draw_times(date: Date<Local>, stopwatch: &mut StopWatch, settings: &Settings,
 }
 
 fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {
-    egui::Grid::new("settings-grid")
+    ui.heading("Date And Time");
+    egui::Grid::new("settings-grid-formats")
         .num_columns(2)
         .show(ui, |ui| {
+            ui.label("Start of week:");
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Sun, "Sun");
+                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Mon, "Mon");
+                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Tue, "Tue");
+                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Wed, "Wed");
+                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Thu, "Thu");
+                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Fri, "Fri");
+                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Sat, "Sat");
+            });
+            ui.end_row();
+
             ui.label("Date Format:");
             ui.text_edit_singleline(&mut settings.date_format);
             ui.end_row();
@@ -294,8 +309,35 @@ fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {
             ui.text_edit_singleline(&mut settings.time_format);
             ui.end_row();
 
-            ui.label("Daily Target Hours:");
-            ui.add(DragValue::new(&mut settings.daily_target_hours).clamp_range(0.0..=24.0));
+            ui.label("");
+            ui.hyperlink_to("Formatter reference", "https://docs.rs/chrono/0.4.19/chrono/format/strftime/index.html");
+            ui.end_row();
+        });
+
+    ui.separator();
+
+    ui.heading("Goals");
+    egui::Grid::new("settings-grid-datetime-logic")
+        .num_columns(2)
+        .show(ui, |ui| {
+            ui.label("Daily Target:");
+            ui.horizontal(|ui| {
+                let mut hours = settings.daily_target_hours.floor();
+                let mut minutes = (settings.daily_target_hours - hours) * 60.0;
+
+                ui.add(DragValue::new(&mut hours)
+                    .clamp_range(0.0..=24.0)
+                    .speed(0.2)
+                    .fixed_decimals(0)
+                    .suffix(" hours"));
+                ui.add(DragValue::new(&mut minutes)
+                    .clamp_range(0.0..=60.0)
+                    .speed(0.2)
+                    .fixed_decimals(0)
+                    .suffix(" minutes"));
+
+                settings.daily_target_hours = hours + minutes / 60.0;
+            });
             ui.end_row();
         });
 
