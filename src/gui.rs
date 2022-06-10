@@ -1,4 +1,4 @@
-use chrono::{Duration, Local, TimeZone};
+use chrono::{Duration, Local, DateTime, Date};
 use eframe::egui::{self, DragValue, RichText};
 
 use crate::database::Tag;
@@ -9,12 +9,17 @@ use crate::{
     database::Block,
 };
 
-#[derive(serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(serde::Deserialize, serde::Serialize, Eq)]
 pub enum GuiState {
     Today,
     ThisWeek,
-    AllTime,
+    AllTime(DateTime<Local>),
     Settings,
+}
+impl PartialEq for GuiState {
+    fn eq(&self, other: &Self) -> bool {
+        core::mem::discriminant(self) == core::mem::discriminant(other)
+    }
 }
 
 impl Default for GuiState {
@@ -28,13 +33,13 @@ impl GuiState {
         ui.horizontal(|ui| {
             ui.selectable_value(self, GuiState::Today, "Today");
             ui.selectable_value(self, GuiState::ThisWeek, "This Week");
-            ui.selectable_value(self, GuiState::AllTime, "History");
+            ui.selectable_value(self, GuiState::AllTime(Local::now()), "History");
             ui.selectable_value(self, GuiState::Settings, "Settings");
         });
     }
 
     pub fn draw_screen(
-        &self,
+        &mut self,
         stopwatch: &mut StopWatch,
         settings: &mut Settings,
         ui: &mut egui::Ui,
@@ -42,7 +47,7 @@ impl GuiState {
         let message = match self {
             GuiState::Today => draw_today(stopwatch, settings, ui),
             GuiState::ThisWeek => draw_this_week(stopwatch, settings, ui),
-            GuiState::AllTime => draw_times(stopwatch, settings, ui),
+            GuiState::AllTime(datetime) => draw_times(datetime.date(), stopwatch, settings, ui),
             GuiState::Settings => draw_settings(settings, ui),
         };
 
@@ -50,6 +55,7 @@ impl GuiState {
             GuiMessage::None => (),
             GuiMessage::ChangedBlockTag(block) => stopwatch.update_tag(block),
             GuiMessage::DeletedBlock(block) => stopwatch.delete_block(block),
+            GuiMessage::SetState(state) => *self = state,
         }
     }
 }
@@ -59,6 +65,7 @@ enum GuiMessage {
     None,
     ChangedBlockTag(Block),
     DeletedBlock(Block),
+    SetState(GuiState),
 }
 
 pub fn draw_todays_goal(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
@@ -219,15 +226,15 @@ fn draw_block_table(blocks: Vec<Block>, tags: &[Tag], settings: &Settings, ui: &
 
 fn draw_this_week(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
     let today = Local::now();
-    draw_week(today, settings, stopwatch, ui)
+    draw_week(today.date(), settings, stopwatch, ui)
 }
 
-fn draw_week(day: chrono::DateTime<Local>, settings: &Settings, stopwatch: &mut StopWatch, ui: &mut egui::Ui) -> GuiMessage {
+fn draw_week(day: chrono::Date<Local>, settings: &Settings, stopwatch: &mut StopWatch, ui: &mut egui::Ui) -> GuiMessage {
     let mut message = GuiMessage::None;
     let tags = &stopwatch.all_tags();
 
     egui::ScrollArea::vertical().show(ui, |ui| {
-        let (total, blocks) = stopwatch.blocks_in_week(day.date(), settings);
+        let (total, blocks) = stopwatch.blocks_in_week(day, settings);
 
         for DayBlock { day, blocks, total } in blocks {
             let header = format!(
@@ -251,60 +258,28 @@ fn draw_week(day: chrono::DateTime<Local>, settings: &Settings, stopwatch: &mut 
     message
 }
 
-fn draw_times(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        egui::Grid::new("the-grid")
-            .num_columns(7)
-            .striped(true)
-            .show(ui, |ui| {
-                let mut to_delete = None;
-                let mut prev_date = Local.ymd(2000, 1, 1);
+fn draw_times(date: Date<Local>, stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
+    let mut message = GuiMessage::None;
+    let date = StopWatch::start_of_week(date, settings);
 
-                for block in stopwatch.all_blocks() {
-                    let date = block.start.date();
-                    let end_date = block.end.date();
-                    let duration = block.end - block.start;
-
-                    if prev_date != date {
-                        ui.label(date.format(&settings.date_format).to_string());
-                        prev_date = date;
-                    } else {
-                        ui.label("");
-                    }
-
-                    ui.label(block.start.format(&settings.time_format).to_string());
-
-                    ui.label("->");
-
-                    if date != end_date {
-                        ui.label(end_date.format(&settings.date_format).to_string());
-                    } else {
-                        ui.label("");
-                    }
-
-                    ui.label(block.end.format(&settings.time_format).to_string());
-
-                    ui.label(fmt_duration(duration));
-
-                    if ui.button("X").clicked() {
-                        to_delete = Some(block);
-                    }
-
-                    ui.end_row();
-                }
-
-                if let Some(index) = to_delete {
-                    stopwatch.delete_block(index);
-                }
-            });
-        
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Total").heading());
-            ui.label(fmt_duration(stopwatch.total_time()));
-        })
+    ui.horizontal(|ui| {
+        if ui.button("<<<").clicked() {
+            message = GuiMessage::SetState(GuiState::AllTime((date - Duration::days(7)).and_hms(11, 0, 0)))
+        }
+        ui.heading(format!("Week of {}", date.format(&settings.date_format)));
+        if ui.button(">>>").clicked() {
+            message = GuiMessage::SetState(GuiState::AllTime((date + Duration::days(7)).and_hms(11, 0, 0)))
+        }
     });
 
-    GuiMessage::None
+    ui.separator();
+
+    let message2 = draw_week(date, settings, stopwatch, ui);
+
+    match message2 {
+        GuiMessage::None => message,
+        msg => msg,
+    }
 }
 
 fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {

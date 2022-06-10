@@ -177,20 +177,7 @@ impl<'a> Blocks<'a> {
         }
     }
 
-    pub fn all(&self) -> Result<Vec<Block>, anyhow::Error> {
-        self.conn.prepare("
-                SELECT
-                    block.id, start, end, running, tag.id, tag.name
-                FROM time_blocks block
-                LEFT JOIN tags tag ON block.tag = tag.id")
-            .context("Preparing to get all blocks")?
-            .query_map([], Self::to_blocks)
-            .context("Trying to get all blocks")?
-            .map(|r| r.context("Trying to map row to Block struct"))
-            .collect()
-    }
-
-    pub fn all_in_range(&self, before: DateTime<Local>, after: DateTime<Local>) -> Result<Vec<Block>, anyhow::Error> {
+    pub fn in_range(&self, before: DateTime<Local>, after: DateTime<Local>) -> Result<Vec<Block>, anyhow::Error> {
         self.conn.prepare("
                 SELECT
                     block.id, start, end, running, tag.id, tag.name
@@ -203,16 +190,6 @@ impl<'a> Blocks<'a> {
             .context("Trying to get all blocks")?
             .map(|r| r.context("Trying to map row to Block struct"))
             .collect()
-    }
-
-    pub fn total_time(&self) -> Result<Duration, anyhow::Error> {
-        let stuff: Option<f64> = self.conn.query_row(
-            "SELECT sum((JulianDay(end) - JulianDay(start)) * 24 * 60 * 60) FROM time_blocks;",
-            [],
-            |row| row.get(0),
-        ).context("Trying to get total time")?;
-
-        Ok(Duration::seconds(stuff.unwrap_or(0.0) as i64))
     }
 }
 

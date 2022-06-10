@@ -68,21 +68,11 @@ impl StopWatch {
         }
     }
 
-    pub fn all_blocks(&self) -> Vec<Block> {
-        match self.database.blocks().all() {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::warn!("{:#}", e);
-                Vec::new()
-            }
-        }
-    }
-
     pub fn blocks_in_day(&mut self, day: Date<Local>) -> (Duration, Vec<Block>) {
         let before = day.and_hms(0, 0, 0);
         let after = before + Duration::days(1);
 
-        match self.database.blocks().all_in_range(before, after) {
+        match self.database.blocks().in_range(before, after) {
             Err(e) => {
                 tracing::warn!("{:#}", e);
                 (Duration::zero(), Vec::new())
@@ -93,6 +83,14 @@ impl StopWatch {
                 (total, blocks)
             }
         }
+    }
+
+    pub fn start_of_week(date: Date<Local>, settings: &Settings) -> Date<Local> {
+        let year = date.year();
+        let week = date.iso_week().week();
+        let weekday = settings.start_of_week.clone();
+        let day = NaiveDate::from_isoywd(year, week, weekday);
+        Local.from_local_date(&day).unwrap()
     }
 
     pub fn blocks_in_week(&mut self, day: Date<Local>, settings: &Settings) -> (Duration, [DayBlock; 7]) {
@@ -116,16 +114,6 @@ impl StopWatch {
         }
 
         (grand_total, days)
-    }
-
-    pub fn total_time(&self) -> Duration {
-        match self.database.blocks().total_time() {
-            Ok(d) => d,
-            Err(e) => {
-                tracing::warn!("{:#}", e);
-                Duration::zero()
-            }
-        }
     }
 
     pub(crate) fn all_tags(&self) -> Vec<crate::database::Tag> {
