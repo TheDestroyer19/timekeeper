@@ -39,15 +39,21 @@ impl GuiState {
         settings: &mut Settings,
         ui: &mut egui::Ui,
     ) {
-        match self {
+        let message = match self {
             GuiState::Today => draw_today(stopwatch, settings, ui),
             GuiState::ThisWeek => draw_this_week(stopwatch, settings, ui),
             GuiState::AllTime => draw_times(stopwatch, settings, ui),
             GuiState::Settings => draw_settings(settings, ui),
+        };
+
+        match message {
+            GuiMessage::None => (),
+            GuiMessage::ChangedBlock(block) => stopwatch.update_tag(block),
         }
     }
 }
 
+#[must_use]
 enum GuiMessage {
     None,
     ChangedBlock(Block),
@@ -135,7 +141,7 @@ pub fn fmt_duration(mut duration: Duration) -> String {
     }
 }
 
-fn draw_today(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
+fn draw_today(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
     let now = Local::now();
     let today = now.date();
 
@@ -148,12 +154,7 @@ fn draw_today(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui)
 
     let message = draw_block_table(blocks, &stopwatch.all_tags(), settings, ui);
 
-    match message {
-        GuiMessage::None => (),
-        GuiMessage::ChangedBlock(block) => stopwatch.update_tag(block),
-    }
-
-    ui.separator();
+    message
 }
 
 fn draw_block_table(blocks: Vec<Block>, tags: &[Tag], settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
@@ -207,12 +208,15 @@ fn draw_block_table(blocks: Vec<Block>, tags: &[Tag], settings: &Settings, ui: &
         message
 }
 
-fn draw_this_week(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
+fn draw_this_week(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
     let today = Local::now();
-    draw_week(today, settings, stopwatch, ui);
+    draw_week(today, settings, stopwatch, ui)
 }
 
-fn draw_week(day: chrono::DateTime<Local>, settings: &Settings, stopwatch: &mut StopWatch, ui: &mut egui::Ui) {
+fn draw_week(day: chrono::DateTime<Local>, settings: &Settings, stopwatch: &mut StopWatch, ui: &mut egui::Ui) -> GuiMessage {
+    let mut message = GuiMessage::None;
+    let tags = &stopwatch.all_tags();
+
     egui::ScrollArea::vertical().show(ui, |ui| {
         let (total, blocks) = stopwatch.blocks_in_week(day.date(), settings);
 
@@ -225,7 +229,7 @@ fn draw_week(day: chrono::DateTime<Local>, settings: &Settings, stopwatch: &mut 
             egui::CollapsingHeader::new(RichText::new(header).heading())
                 .id_source(day)
                 .show(ui, |ui| {
-                draw_block_table(blocks, &stopwatch.all_tags(), settings, ui);
+                message = draw_block_table(blocks, tags, settings, ui);
             });
         }
         ui.separator();
@@ -234,9 +238,11 @@ fn draw_week(day: chrono::DateTime<Local>, settings: &Settings, stopwatch: &mut 
             ui.label(RichText::new(fmt_duration(total)).heading());
         });
     });
+
+    message
 }
 
-fn draw_times(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
+fn draw_times(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
     egui::ScrollArea::vertical().show(ui, |ui| {
         egui::Grid::new("the-grid")
             .num_columns(7)
@@ -288,9 +294,11 @@ fn draw_times(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui)
             ui.label(fmt_duration(stopwatch.total_time()));
         })
     });
+
+    GuiMessage::None
 }
 
-fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) {
+fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {
     egui::Grid::new("settings-grid")
         .num_columns(2)
         .show(ui, |ui| {
@@ -306,4 +314,6 @@ fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) {
             ui.add(DragValue::new(&mut settings.daily_target_hours).clamp_range(0.0..=24.0));
             ui.end_row();
         });
+
+    GuiMessage::None
 }
