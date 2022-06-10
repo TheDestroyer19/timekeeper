@@ -1,5 +1,6 @@
 use chrono::{Duration, Local, DateTime, Date};
 use eframe::egui::{self, DragValue, RichText};
+use egui_datepicker::DatePicker;
 
 use crate::database::Tag;
 use crate::stopwatch::DayBlock;
@@ -13,7 +14,7 @@ use crate::{
 pub enum GuiState {
     Today,
     ThisWeek,
-    AllTime(DateTime<Local>),
+    History(DateTime<Local>),
     Settings,
 }
 impl PartialEq for GuiState {
@@ -33,7 +34,7 @@ impl GuiState {
         ui.horizontal(|ui| {
             ui.selectable_value(self, GuiState::Today, "Today");
             ui.selectable_value(self, GuiState::ThisWeek, "This Week");
-            ui.selectable_value(self, GuiState::AllTime(Local::now()), "History");
+            ui.selectable_value(self, GuiState::History(Local::now()), "History");
             ui.selectable_value(self, GuiState::Settings, "Settings");
         });
     }
@@ -47,7 +48,7 @@ impl GuiState {
         let message = match self {
             GuiState::Today => draw_today(stopwatch, settings, ui),
             GuiState::ThisWeek => draw_this_week(stopwatch, settings, ui),
-            GuiState::AllTime(datetime) => draw_times(datetime.date(), stopwatch, settings, ui),
+            GuiState::History(datetime) => draw_history(datetime.date(), stopwatch, settings, ui),
             GuiState::Settings => draw_settings(settings, ui),
         };
 
@@ -125,10 +126,10 @@ pub fn draw_stopwatch(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut e
             draw_todays_goal(stopwatch, settings, ui);
 
             if current.is_some() {
-                if ui.button(RichText::new("Stop").size(20.0)).clicked() {
+                if ui.button(RichText::new("Stop").heading()).clicked() {
                     stopwatch.stop();
                 }
-            } else if ui.button(RichText::new("Start").size(20.0)).clicked() {
+            } else if ui.button(RichText::new("Start").heading()).clicked() {
                 stopwatch.start();
             }
         },
@@ -260,23 +261,30 @@ fn draw_week(day: chrono::Date<Local>, settings: &Settings, stopwatch: &mut Stop
     message
 }
 
-fn draw_times(date: Date<Local>, stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
+fn draw_history(date: Date<Local>, stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
     let mut message = GuiMessage::None;
-    let date = StopWatch::start_of_week(date, settings);
+    let mut start_of_week = StopWatch::start_of_week(date, settings);
 
     ui.horizontal(|ui| {
         if ui.button("<<<").clicked() {
-            message = GuiMessage::SetState(GuiState::AllTime((date - Duration::days(7)).and_hms(11, 0, 0)))
+            message = GuiMessage::SetState(GuiState::History((start_of_week - Duration::days(7)).and_hms(11, 0, 0)))
         }
-        ui.heading(format!("Week of {}", date.format(&settings.date_format)));
+        ui.add(DatePicker::new("history-datepicker", &mut start_of_week)
+            .date_format(&settings.week_format)
+            .highlight_weekend(true)
+            .movable(true)
+            .sunday_first(settings.start_of_week == chrono::Weekday::Sun));
+        if start_of_week != date {
+            message = GuiMessage::SetState(GuiState::History(start_of_week.and_hms(11, 0, 0)));
+        }
         if ui.button(">>>").clicked() {
-            message = GuiMessage::SetState(GuiState::AllTime((date + Duration::days(7)).and_hms(11, 0, 0)))
+            message = GuiMessage::SetState(GuiState::History((start_of_week + Duration::days(7)).and_hms(11, 0, 0)))
         }
     });
 
     ui.separator();
 
-    let message2 = draw_week(date, settings, stopwatch, ui);
+    let message2 = draw_week(start_of_week, settings, stopwatch, ui);
 
     match message2 {
         GuiMessage::None => message,
@@ -285,28 +293,37 @@ fn draw_times(date: Date<Local>, stopwatch: &mut StopWatch, settings: &Settings,
 }
 
 fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {
+    let now = Local::now();
     ui.heading("Date And Time");
     egui::Grid::new("settings-grid-formats")
-        .num_columns(2)
+        .num_columns(3)
         .show(ui, |ui| {
             ui.label("Start of week:");
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Sun, "Sun");
-                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Mon, "Mon");
-                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Tue, "Tue");
-                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Wed, "Wed");
-                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Thu, "Thu");
-                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Fri, "Fri");
-                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Sat, "Sat");
+                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Sun, "Sunday");
+                ui.selectable_value(&mut settings.start_of_week, chrono::Weekday::Mon, "Monday");
             });
             ui.end_row();
 
             ui.label("Date Format:");
             ui.text_edit_singleline(&mut settings.date_format);
             ui.end_row();
+            ui.label("");
+            ui.label(now.format(&settings.date_format).to_string());
+            ui.end_row();
+
+            ui.label("Week Format:");
+            ui.text_edit_singleline(&mut settings.week_format);
+            ui.end_row();
+            ui.label("");
+            ui.label(now.format(&settings.week_format).to_string());
+            ui.end_row();
 
             ui.label("Time Format:");
             ui.text_edit_singleline(&mut settings.time_format);
+            ui.end_row();
+            ui.label("");
+            ui.label(now.format(&settings.time_format).to_string());
             ui.end_row();
 
             ui.label("");

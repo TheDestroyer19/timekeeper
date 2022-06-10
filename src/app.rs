@@ -11,6 +11,7 @@ use crate::{APP_NAME, SETTINGS_KEY, STATE_KEY};
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct Settings {
+    pub week_format: String,
     pub date_format: String,
     pub time_format: String,
 
@@ -22,6 +23,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            week_format: "Week of %B %e, %Y".into(),
             date_format: "%y-%m-%d".into(),
             time_format: "%H:%M".into(),
             start_of_week: Weekday::Mon,
@@ -54,7 +56,7 @@ impl epi::App for TimeKeeperApp {
     /// Called once before the first frame.
     fn setup(
         &mut self,
-        _ctx: &egui::Context,
+        _ctx: &egui::CtxRef,
         frame: &epi::Frame,
         _storage: Option<&dyn epi::Storage>,
     ) {
@@ -77,7 +79,7 @@ impl epi::App for TimeKeeperApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
-    fn update(&mut self, ctx: &egui::Context, _frame: &epi::Frame) {
+    fn update(&mut self, ctx: &egui::CtxRef, _frame: &epi::Frame) {
         egui::TopBottomPanel::top("tabs").show(ctx, |ui| {
             self.state.draw_tabs(ui);
         });
