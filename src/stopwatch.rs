@@ -36,7 +36,7 @@ impl StopWatch {
     pub fn stop(&mut self) {
         if let Some(mut block) = self.current() {
             block.running = false;
-            match self.database.blocks().update(block) {
+            match self.database.blocks().update_running(block) {
                 Ok(()) => (),
                 Err(e) => tracing::warn!("{:#}", e),
             }
@@ -49,7 +49,7 @@ impl StopWatch {
         match self.database.blocks().current() {
             Ok(Some(mut block)) => {
                 block.end = Local::now();
-                if let Err(e) = self.database.blocks().update(block.clone()) {
+                if let Err(e) = self.database.blocks().update_running(block.clone()) {
                     tracing::warn!("{:#}", e);
                 };
                 Some(block)
@@ -138,8 +138,8 @@ impl StopWatch {
         }
     }
 
-    pub(crate) fn update_block(&self, block: Block) {
-        match self.database.blocks().update(block) {
+    pub(crate) fn update_tag(&self, block: Block) {
+        match self.database.blocks().update_tag(block) {
             Ok(_) => (),
             Err(e) => tracing::warn!("{:#}", e),
         }

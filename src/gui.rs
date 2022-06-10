@@ -150,7 +150,7 @@ fn draw_today(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui)
 
     match message {
         GuiMessage::None => (),
-        GuiMessage::ChangedBlock(block) => stopwatch.update_block(block),
+        GuiMessage::ChangedBlock(block) => stopwatch.update_tag(block),
     }
 
     ui.separator();

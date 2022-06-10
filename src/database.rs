@@ -129,14 +129,25 @@ impl<'a> Blocks<'a> {
             .context("Trying to insert block into database")
     }
 
-    pub fn update(&self, block: Block) -> Result<(), anyhow::Error> {
-        let tag = block.tag.map(|t| t.id);
+    pub fn update_running(&self, block: Block) -> Result<(), anyhow::Error> {
         let running = if block.running { Some("Y") } else { None };
         self.conn.execute(
             "UPDATE time_blocks
-            SET start = ?2, end = ?3, running = ?4, tag = ?5
+            SET end = ?2, running = ?3
             WHERE id = ?1",
-            rusqlite::params![block.id, block.start, block.end, running, tag]
+            rusqlite::params![block.id, block.end, running]
+        )
+        .map(|_| ())
+        .context("Trying to update a block")
+    }
+
+    pub fn update_tag(&self, block: Block) -> Result<(), anyhow::Error> {
+        let tag = block.tag.map(|t| t.id);
+        self.conn.execute(
+            "UPDATE time_blocks
+            SET tag = ?2
+            WHERE id = ?1",
+            rusqlite::params![block.id, tag]
         )
         .map(|_| ())
         .context("Trying to update a block")
