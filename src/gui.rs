@@ -48,7 +48,8 @@ impl GuiState {
 
         match message {
             GuiMessage::None => (),
-            GuiMessage::ChangedBlock(block) => stopwatch.update_tag(block),
+            GuiMessage::ChangedBlockTag(block) => stopwatch.update_tag(block),
+            GuiMessage::DeletedBlock(block) => stopwatch.delete_block(block),
         }
     }
 }
@@ -56,7 +57,8 @@ impl GuiState {
 #[must_use]
 enum GuiMessage {
     None,
-    ChangedBlock(Block),
+    ChangedBlockTag(Block),
+    DeletedBlock(Block),
 }
 
 pub fn draw_todays_goal(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
@@ -165,40 +167,47 @@ fn draw_block_table(blocks: Vec<Block>, tags: &[Tag], settings: &Settings, ui: &
     let mut message = GuiMessage::None;
 
     egui::Grid::new(blocks[0].id())
-        .num_columns(5)
+        .num_columns(3)
         .striped(true)
         .show(ui, |ui| {
             for mut block in blocks {
-                ui.label(block.start.format(&settings.time_format).to_string());
-                ui.label("->");
-                if block.start.date() == block.end.date() {
-                    ui.label(block.end.format(&settings.time_format).to_string());
-                } else {
-                    ui.horizontal(|ui| {
+                ui.horizontal(|ui| {
+                    ui.label(block.start.format(&settings.time_format).to_string());
+                    ui.label("->");
+                    if block.start.date() != block.end.date() {
+                        //TODO don't add the date -- waiting on auto splitting blocks that cover multiple days
                         ui.label(block.end.format(&settings.date_format).to_string());
-                        ui.label(block.end.format(&settings.time_format).to_string());
-                    });
-                }
+                    }
+                    ui.label(block.end.format(&settings.time_format).to_string());
+                });
                 ui.label(fmt_duration(block.duration()));
 
-                let tag_text = if let Some(tag) = &block.tag {
-                    &tag.name
-                } else {
-                    ""
-                };
-
                 let old_tag = block.tag.clone();
-                egui::ComboBox::from_id_source(block.id())
+                let mut to_delete = false;
+
+                ui.horizontal(|ui| {
+                    let tag_text = if let Some(tag) = &block.tag {
+                        &tag.name
+                    } else {
+                        ""
+                    };
+                    egui::ComboBox::from_id_source(block.id())
                     .selected_text(tag_text)
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut block.tag, None, "Remove tag");
                         for tag in tags {
                             ui.selectable_value(&mut block.tag, Some(tag.clone()), &tag.name);
                         }
+                        ui.separator();
+                        ui.selectable_value(&mut block.tag, None, "Remove tag");
                     });
 
-                if old_tag != block.tag {
-                    message = GuiMessage::ChangedBlock(block);
+                    to_delete = ui.button("X").clicked();
+                });
+                
+                if to_delete {
+                    message = GuiMessage::DeletedBlock(block);
+                } else if old_tag != block.tag {
+                    message = GuiMessage::ChangedBlockTag(block);
                 }
 
                 ui.end_row();
