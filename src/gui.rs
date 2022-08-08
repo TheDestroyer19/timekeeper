@@ -234,28 +234,25 @@ fn draw_week(day: chrono::Date<Local>, settings: &Settings, stopwatch: &mut Stop
     let mut message = GuiMessage::None;
     let tags = &stopwatch.all_tags();
 
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        let (total, blocks) = stopwatch.blocks_in_week(day, settings);
+    let (total, blocks) = stopwatch.blocks_in_week(day, settings);
 
-
-        for DayBlock { day, blocks, total } in blocks {
-            if total.is_zero() { continue; }
-            let header = format!(
-                "{} - {}",
-                day.format(&settings.date_format).to_string(),
-                fmt_duration(total)
-            );
-            egui::CollapsingHeader::new(RichText::new(header).heading())
-                .id_source(day)
-                .show(ui, |ui| {
-                message = draw_block_table(blocks, tags, settings, ui);
-            });
-        }
-        ui.separator();
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Total:").heading());
-            ui.label(RichText::new(fmt_duration(total)).heading());
+    for DayBlock { day, blocks, total } in blocks {
+        if total.is_zero() { continue; }
+        let header = format!(
+            "{} - {}",
+            day.format(&settings.date_format).to_string(),
+            fmt_duration(total)
+        );
+        egui::CollapsingHeader::new(RichText::new(header).heading())
+            .id_source(day)
+            .show(ui, |ui| {
+            message = draw_block_table(blocks, tags, settings, ui);
         });
+    }
+    ui.separator();
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Total:").heading());
+        ui.label(RichText::new(fmt_duration(total)).heading());
     });
 
     message

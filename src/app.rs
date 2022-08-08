@@ -89,8 +89,10 @@ impl epi::App for TimeKeeperApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.state
-                .draw_screen(&mut self.stopwatch, &mut self.settings, ui)
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                self.state
+                    .draw_screen(&mut self.stopwatch, &mut self.settings, ui)
+            })
         });
     }
 }
