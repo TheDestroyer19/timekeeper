@@ -18,6 +18,7 @@ pub struct Settings {
     pub start_of_week: Weekday,
 
     pub daily_target_hours: f32,
+    pub weekly_target_hours: f32,
 }
 
 impl Default for Settings {
@@ -28,6 +29,7 @@ impl Default for Settings {
             time_format: "%H:%M".into(),
             start_of_week: Weekday::Mon,
             daily_target_hours: 8.0,
+            weekly_target_hours: 40.0,
         }
     }
 }

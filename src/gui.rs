@@ -353,6 +353,25 @@ fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {
                 settings.daily_target_hours = hours + minutes / 60.0;
             });
             ui.end_row();
+
+            ui.label("Weekly Target:");
+            ui.horizontal(|ui| {
+                let mut hours = settings.weekly_target_hours.floor();
+                let mut minutes = (settings.weekly_target_hours - hours) * 60.0;
+
+                ui.add(DragValue::new(&mut hours)
+                    .clamp_range(0.0..=168.0)
+                    .speed(0.2)
+                    .fixed_decimals(0)
+                    .suffix(" hours"));
+                ui.add(DragValue::new(&mut minutes)
+                    .clamp_range(0.0..=60.0)
+                    .speed(0.2)
+                    .fixed_decimals(0)
+                    .suffix(" minutes"));
+
+                settings.weekly_target_hours = hours + minutes / 60.0;
+            })
         });
 
     GuiMessage::None
