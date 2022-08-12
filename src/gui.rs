@@ -3,7 +3,7 @@ use eframe::egui::{self, DragValue, RichText};
 use egui_datepicker::DatePicker;
 
 use crate::database::Tag;
-use crate::stopwatch::DayBlock;
+use crate::stopwatch::{DayBlock, GoalState};
 use crate::{
     app::Settings,
     stopwatch::StopWatch,
@@ -69,43 +69,33 @@ enum GuiMessage {
     SetState(GuiState),
 }
 
-pub fn draw_todays_goal(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
-    let goal = Some((settings.daily_target_hours * 60.0) as i64)
-        .filter(|n| *n > 0)
-        .map(Duration::minutes);
-    let goal = match goal {
-        Some(goal) => goal,
-        None => return,
-    };
+pub fn draw_goals(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
+    let daily = stopwatch.remaining_daily_goal(settings);
+    let weekly = stopwatch.remaining_weekly_goal(settings);
+    let running = stopwatch.current().is_some();
+    
+    draw_goal("Daily goal", running, daily, settings.daily_goal, settings, ui);
+    draw_goal("Weekly goal", running, weekly, settings.weekly_goal, settings, ui);
+}
 
-    let current = stopwatch.current().is_some();
-    let now = Local::now();
-    let (time_today, _) = stopwatch.blocks_in_day(now.date());
-    let time_left = goal - time_today;
-    let projected = now + time_left;
+pub fn draw_goal(label: &str, running: bool, state: GoalState, goal: Duration, settings: &Settings, ui: &mut egui::Ui) {
+    match state {
+        GoalState::ZeroGoal => return,
+        GoalState::StillNeeds(remaining) => {
+            let fraction = 1.0 - remaining.num_seconds() as f32 / goal.num_seconds() as f32;
+            let progress = egui::ProgressBar::new(fraction);
 
-    let text = match (current, time_left.cmp(&Duration::zero())) {
-        (_, std::cmp::Ordering::Less) => format!(
-            "You've reached your goal of {} today. Huzzah!",
-            fmt_duration(goal)
-        ), //TODO report how much more than the goal today
-        (_, std::cmp::Ordering::Equal) => format!(
-            "You've reached your goal of {} today. Huzzah!",
-            fmt_duration(goal)
-        ),
-        (true, std::cmp::Ordering::Greater) => format!(
-            "You will reach {} today at {}",
-            fmt_duration(goal),
-            projected.format(&settings.time_format)
-        ),
-        (false, std::cmp::Ordering::Greater) => format!(
-            "If you start right now, you can reach {} today at {}",
-            fmt_duration(goal),
-            projected.format(&settings.time_format)
-        ),
-    };
-
-    ui.label(text);
+            if remaining.num_hours() < 10 && running {
+                let end_time = Local::now() + remaining;
+                ui.add(progress.text(format!("{} finishes at {}", label, end_time.format(&settings.time_format))));
+            } else {
+                ui.add(progress.text(format!("{} left on {}", fmt_duration(remaining), label)));
+            }
+        },
+        GoalState::Reached => {
+            ui.add(egui::ProgressBar::new(1.0).text(format!("Huzzah, {} acheived!", label)));
+        },
+    }
 }
 
 pub fn draw_stopwatch(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
@@ -113,20 +103,16 @@ pub fn draw_stopwatch(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut e
         egui::Layout::top_down_justified(egui::Align::Center),
         |ui| {
             let current = stopwatch.current();
-            if let Some(block) = &current {
-                let duration = block.duration();
-
-                ui.label(format!(
-                    "{} - now ({})",
-                    block.start.format(&settings.time_format),
-                    fmt_duration(duration)
-                ));
-            };
             
-            draw_todays_goal(stopwatch, settings, ui);
+            draw_goals(stopwatch, settings, ui);
 
-            if current.is_some() {
-                if ui.button(RichText::new("Stop").heading()).clicked() {
+            if let Some(current) = current {
+                let text = format!(
+                    "{}\tStop", fmt_duration(current.duration())
+                );
+                let button = egui::Button::new(RichText::new(text).heading())
+                    .fill(egui::color::Color32::DARK_GREEN);
+                if ui.add(button).clicked() {
                     stopwatch.stop();
                 }
             } else if ui.button(RichText::new("Start").heading()).clicked() {
@@ -336,8 +322,8 @@ fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {
         .show(ui, |ui| {
             ui.label("Daily Target:");
             ui.horizontal(|ui| {
-                let mut hours = settings.daily_target_hours.floor();
-                let mut minutes = (settings.daily_target_hours - hours) * 60.0;
+                let mut hours = settings.daily_goal.num_hours();
+                let mut minutes = settings.daily_goal.num_minutes() % 60;
 
                 ui.add(DragValue::new(&mut hours)
                     .clamp_range(0.0..=24.0)
@@ -350,14 +336,14 @@ fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {
                     .fixed_decimals(0)
                     .suffix(" minutes"));
 
-                settings.daily_target_hours = hours + minutes / 60.0;
+                settings.daily_goal = Duration::minutes(hours * 60 + minutes);
             });
             ui.end_row();
 
             ui.label("Weekly Target:");
             ui.horizontal(|ui| {
-                let mut hours = settings.weekly_target_hours.floor();
-                let mut minutes = (settings.weekly_target_hours - hours) * 60.0;
+                let mut hours = settings.weekly_goal.num_hours();
+                let mut minutes = settings.weekly_goal.num_minutes() % 60;
 
                 ui.add(DragValue::new(&mut hours)
                     .clamp_range(0.0..=168.0)
@@ -370,7 +356,7 @@ fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {
                     .fixed_decimals(0)
                     .suffix(" minutes"));
 
-                settings.weekly_target_hours = hours + minutes / 60.0;
+                settings.weekly_goal = Duration::minutes(hours * 60 + minutes);
             })
         });
 

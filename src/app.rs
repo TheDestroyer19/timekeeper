@@ -2,10 +2,23 @@ use std::thread;
 
 use chrono::{Duration, Weekday};
 use eframe::{egui, epi};
+use serde::{Serialize, Deserialize};
 
 use crate::gui::{draw_stopwatch, GuiState};
 use crate::stopwatch::StopWatch;
 use crate::{APP_NAME, SETTINGS_KEY, STATE_KEY};
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "Duration")]
+struct DurationDef {
+    #[serde(getter="Duration::num_seconds")]
+    secs: i64
+}
+impl From<DurationDef> for Duration {
+    fn from(d: DurationDef) -> Self {
+        Duration::seconds(d.secs)
+    }
+}
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -17,8 +30,10 @@ pub struct Settings {
 
     pub start_of_week: Weekday,
 
-    pub daily_target_hours: f32,
-    pub weekly_target_hours: f32,
+    #[serde(with = "DurationDef")]
+    pub daily_goal: Duration,
+    #[serde(with = "DurationDef")]
+    pub weekly_goal: Duration,
 }
 
 impl Default for Settings {
@@ -28,8 +43,8 @@ impl Default for Settings {
             date_format: "%y-%m-%d".into(),
             time_format: "%H:%M".into(),
             start_of_week: Weekday::Mon,
-            daily_target_hours: 8.0,
-            weekly_target_hours: 40.0,
+            daily_goal: Duration::hours(8),
+            weekly_goal: Duration::hours(40),
         }
     }
 }

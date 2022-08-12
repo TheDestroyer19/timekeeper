@@ -3,6 +3,12 @@ use chrono::{Date, Duration, Local, NaiveDate, TimeZone, Datelike};
 use crate::app::Settings;
 use crate::database::{Database, Block};
 
+pub enum GoalState {
+    ZeroGoal,
+    StillNeeds(Duration),
+    Reached,
+}
+
 /// wrapper for details about one day
 pub struct DayBlock {
     pub day: Date<Local>,
@@ -68,7 +74,7 @@ impl StopWatch {
         }
     }
 
-    pub fn blocks_in_day(&mut self, day: Date<Local>) -> (Duration, Vec<Block>) {
+    pub fn blocks_in_day(&self, day: Date<Local>) -> (Duration, Vec<Block>) {
         let before = day.and_hms(0, 0, 0);
         let after = before + Duration::days(1);
 
@@ -85,6 +91,22 @@ impl StopWatch {
         }
     }
 
+    pub fn total_time(&self, day: Date<Local>) -> Duration {
+        let before = day.and_hms(0, 0, 0);
+        let after = before + Duration::days(1);
+
+        match self.database.blocks().in_range(before, after) {
+            Err(e) => {
+                tracing::warn!("{:#}", e);
+                Duration::zero()
+            },
+            Ok(blocks) => {
+                blocks.iter()
+                    .fold(Duration::zero(), |a, b| a + b.duration())
+            }
+        }
+    }
+
     pub fn start_of_week(date: Date<Local>, settings: &Settings) -> Date<Local> {
         let year = date.year();
         let week = date.iso_week().week();
@@ -93,7 +115,7 @@ impl StopWatch {
         Local.from_local_date(&day).unwrap()
     }
 
-    pub fn blocks_in_week(&mut self, day: Date<Local>, settings: &Settings) -> (Duration, [DayBlock; 7]) {
+    pub fn blocks_in_week(&self, day: Date<Local>, settings: &Settings) -> (Duration, [DayBlock; 7]) {
         let mut days = <[DayBlock; 7]>::default();
         let year = day.year();
         let week = day.iso_week();
@@ -130,6 +152,40 @@ impl StopWatch {
         match self.database.blocks().update_tag(block) {
             Ok(_) => (),
             Err(e) => tracing::warn!("{:#}", e),
+        }
+    }
+
+    pub(crate) fn remaining_daily_goal(&self, settings: &Settings) -> GoalState {
+        let goal  = settings.daily_goal;
+        if goal <= Duration::zero() {
+            return GoalState::ZeroGoal;
+        }
+
+        let time_today = self.total_time(Local::now().date());
+
+        let remaining = goal - time_today;
+
+        if remaining <= Duration::zero() {
+            GoalState::Reached
+        } else {
+            GoalState::StillNeeds(remaining)
+        }
+    }
+
+    pub(crate) fn remaining_weekly_goal(&self, settings: &Settings) -> GoalState {
+        let goal  = settings.weekly_goal;
+        if goal <= Duration::zero() {
+            return GoalState::ZeroGoal;
+        }
+
+        let time_this_week = self.blocks_in_week(Local::now().date(), settings).0;
+
+        let remaining = goal - time_this_week;
+
+        if remaining <= Duration::zero() {
+            GoalState::Reached
+        } else {
+            GoalState::StillNeeds(remaining)
         }
     }
 }
