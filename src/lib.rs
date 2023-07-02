@@ -5,12 +5,13 @@
 mod app;
 mod gui;
 mod stopwatch;
+mod history;
 mod database;
 pub use app::TimeKeeperApp;
 
-const APP_NAME: &'static str = "TimeKeeper";
-const SETTINGS_KEY: &'static str = "Settings";
-const STATE_KEY: &'static str = "State";
+const APP_NAME: &str = "TimeKeeper";
+const SETTINGS_KEY: &str = "Settings";
+const STATE_KEY: &str = "State";
 
 // ----------------------------------------------------------------------------
 // When compiling for web:

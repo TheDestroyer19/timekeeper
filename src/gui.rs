@@ -3,7 +3,7 @@ use eframe::egui::{self, DragValue, RichText};
 use egui_datepicker::DatePicker;
 
 use crate::database::Tag;
-use crate::stopwatch::{DayBlock, GoalState};
+use crate::history::{DayBlock, GoalState, History};
 use crate::{
     app::Settings,
     stopwatch::StopWatch,
@@ -42,20 +42,21 @@ impl GuiState {
     pub fn draw_screen(
         &mut self,
         stopwatch: &mut StopWatch,
+        history: &mut History,
         settings: &mut Settings,
         ui: &mut egui::Ui,
     ) {
         let message = match self {
-            GuiState::Today => draw_today(stopwatch, settings, ui),
-            GuiState::ThisWeek => draw_this_week(stopwatch, settings, ui),
-            GuiState::History(datetime) => draw_history(datetime.date(), stopwatch, settings, ui),
+            GuiState::Today => draw_today(stopwatch, history, settings, ui),
+            GuiState::ThisWeek => draw_this_week(stopwatch, settings, history, ui),
+            GuiState::History(datetime) => draw_history(datetime.date(), stopwatch, history, settings, ui),
             GuiState::Settings => draw_settings(settings, ui),
         };
 
         match message {
             GuiMessage::None => (),
             GuiMessage::ChangedBlockTag(block) => stopwatch.update_tag(block),
-            GuiMessage::DeletedBlock(block) => stopwatch.delete_block(block),
+            GuiMessage::DeletedBlock(block) => history.delete_block(block),
             GuiMessage::SetState(state) => *self = state,
         }
     }
@@ -69,9 +70,13 @@ enum GuiMessage {
     SetState(GuiState),
 }
 
-pub fn draw_goals(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
-    let daily = stopwatch.remaining_daily_goal(settings);
-    let weekly = stopwatch.remaining_weekly_goal(settings);
+pub fn draw_goals(
+    stopwatch: &mut StopWatch, 
+    history: &mut History,
+    settings: &Settings, 
+    ui: &mut egui::Ui) {
+    let daily = history.remaining_daily_goal(settings);
+    let weekly = history.remaining_weekly_goal(settings);
     let running = stopwatch.current().is_some();
     
     draw_goal("Daily goal", running, daily, settings.daily_goal, settings, ui);
@@ -80,7 +85,7 @@ pub fn draw_goals(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui:
 
 pub fn draw_goal(label: &str, running: bool, state: GoalState, goal: Duration, settings: &Settings, ui: &mut egui::Ui) {
     match state {
-        GoalState::ZeroGoal => return,
+        GoalState::ZeroGoal => (),
         GoalState::StillNeeds(remaining) => {
             let fraction = 1.0 - remaining.num_seconds() as f32 / goal.num_seconds() as f32;
             let progress = egui::ProgressBar::new(fraction);
@@ -98,13 +103,18 @@ pub fn draw_goal(label: &str, running: bool, state: GoalState, goal: Duration, s
     }
 }
 
-pub fn draw_stopwatch(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) {
+pub fn draw_stopwatch(
+    stopwatch: &mut StopWatch, 
+    history: &mut History,
+    settings: &Settings, 
+    ui: &mut egui::Ui
+) {
     ui.with_layout(
         egui::Layout::top_down_justified(egui::Align::Center),
         |ui| {
             let current = stopwatch.current();
             
-            draw_goals(stopwatch, settings, ui);
+            draw_goals(stopwatch, history, settings, ui);
 
             if let Some(current) = current {
                 let text = format!(
@@ -137,20 +147,23 @@ pub fn fmt_duration(mut duration: Duration) -> String {
     }
 }
 
-fn draw_today(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
+fn draw_today(
+    stopwatch: &mut StopWatch, 
+    history: &mut History,
+    settings: &Settings, 
+    ui: &mut egui::Ui
+) -> GuiMessage {
     let now = Local::now();
     let today = now.date();
 
-    let (total, blocks) = stopwatch.blocks_in_day(today);
+    let (total, blocks) = history.blocks_in_day(today);
 
     ui.horizontal(|ui| {
         ui.label(RichText::new(today.format(&settings.date_format).to_string()).heading());
         ui.label(RichText::new(fmt_duration(total)).heading());
     });
 
-    let message = draw_block_table(blocks, &stopwatch.all_tags(), settings, ui);
-
-    message
+    draw_block_table(blocks, &stopwatch.all_tags(), settings, ui)
 }
 
 fn draw_block_table(blocks: Vec<Block>, tags: &[Tag], settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
@@ -211,16 +224,23 @@ fn draw_block_table(blocks: Vec<Block>, tags: &[Tag], settings: &Settings, ui: &
         message
 }
 
-fn draw_this_week(stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
+fn draw_this_week(stopwatch: &mut StopWatch, settings: &Settings,
+    history: &mut History, ui: &mut egui::Ui) -> GuiMessage {
     let today = Local::now();
-    draw_week(today.date(), settings, stopwatch, ui)
+    draw_week(today.date(), settings, stopwatch, history,  ui)
 }
 
-fn draw_week(day: chrono::Date<Local>, settings: &Settings, stopwatch: &mut StopWatch, ui: &mut egui::Ui) -> GuiMessage {
+fn draw_week(
+    day: chrono::Date<Local>, 
+    settings: &Settings, 
+    stopwatch: &mut StopWatch, 
+    history: &mut History,
+    ui: &mut egui::Ui
+) -> GuiMessage {
     let mut message = GuiMessage::None;
     let tags = &stopwatch.all_tags();
 
-    let (total, blocks) = stopwatch.blocks_in_week(day, settings);
+    let (total, blocks) = history.blocks_in_week(day, settings);
 
     for DayBlock { day, blocks, total } in blocks {
         if total.is_zero() { continue; }
@@ -244,9 +264,9 @@ fn draw_week(day: chrono::Date<Local>, settings: &Settings, stopwatch: &mut Stop
     message
 }
 
-fn draw_history(date: Date<Local>, stopwatch: &mut StopWatch, settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
+fn draw_history(date: Date<Local>, stopwatch: &mut StopWatch, history: &mut History, settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
     let mut message = GuiMessage::None;
-    let mut start_of_week = StopWatch::start_of_week(date, settings);
+    let mut start_of_week = History::start_of_week(date, settings);
 
     ui.horizontal(|ui| {
         if ui.button("<<<").clicked() {
@@ -267,7 +287,7 @@ fn draw_history(date: Date<Local>, stopwatch: &mut StopWatch, settings: &Setting
 
     ui.separator();
 
-    let message2 = draw_week(start_of_week, settings, stopwatch, ui);
+    let message2 = draw_week(start_of_week, settings, stopwatch, history, ui);
 
     match message2 {
         GuiMessage::None => message,

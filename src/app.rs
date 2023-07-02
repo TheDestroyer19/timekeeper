@@ -5,6 +5,7 @@ use eframe::{egui, epi};
 use serde::{Serialize, Deserialize};
 
 use crate::gui::{draw_stopwatch, GuiState};
+use crate::history::History;
 use crate::stopwatch::StopWatch;
 use crate::{APP_NAME, SETTINGS_KEY, STATE_KEY};
 
@@ -49,20 +50,12 @@ impl Default for Settings {
     }
 }
 
+#[derive(Default)]
 pub struct TimeKeeperApp {
     state: GuiState,
     settings: Settings,
     stopwatch: StopWatch,
-}
-
-impl Default for TimeKeeperApp {
-    fn default() -> Self {
-        Self {
-            state: GuiState::default(),
-            settings: Settings::default(),
-            stopwatch: StopWatch::default(),
-        }
-    }
+    history: History,
 }
 
 impl epi::App for TimeKeeperApp {
@@ -102,13 +95,13 @@ impl epi::App for TimeKeeperApp {
         });
 
         egui::TopBottomPanel::bottom("stopwatch").show(ctx, |ui| {
-            draw_stopwatch(&mut self.stopwatch, &self.settings, ui);
+            draw_stopwatch(&mut self.stopwatch, &mut self.history, &self.settings, ui);
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 self.state
-                    .draw_screen(&mut self.stopwatch, &mut self.settings, ui)
+                    .draw_screen(&mut self.stopwatch, &mut self.history, &mut self.settings, ui)
             })
         });
     }
