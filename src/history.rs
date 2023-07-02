@@ -1,4 +1,4 @@
-use chrono::{Local, Date, Duration, Datelike, NaiveDate, TimeZone};
+use chrono::{Local, Duration, Datelike, DateTime, Timelike, Days};
 
 use crate::{
     database::{Database, Block}, 
@@ -13,13 +13,13 @@ pub enum GoalState {
 
 /// wrapper for details about one day
 pub struct DayBlock {
-    pub day: Date<Local>,
+    pub day: DateTime<Local>,
     pub blocks: Vec<Block>,
     pub total: Duration,
 }
 impl Default for DayBlock {
     fn default() -> Self {
-        Self { day: Local::now().date(), blocks: Default::default(), total: Duration::zero() }
+        Self { day: Local::now(), blocks: Default::default(), total: Duration::zero() }
     }
 }
 
@@ -40,8 +40,8 @@ impl History {
         }
     }
 
-    pub fn blocks_in_day(&self, day: Date<Local>) -> (Duration, Vec<Block>) {
-        let before = day.and_hms(0, 0, 0);
+    pub fn blocks_in_day(&self, day: DateTime<Local>) -> (Duration, Vec<Block>) {
+        let before = day - Duration::seconds(day.num_seconds_from_midnight() as i64);
         let after = before + Duration::days(1);
 
         match self.database.blocks().in_range(before, after) {
@@ -57,8 +57,8 @@ impl History {
         }
     }
 
-    pub fn total_time(&self, day: Date<Local>) -> Duration {
-        let before = day.and_hms(0, 0, 0);
+    pub fn total_time(&self, day: DateTime<Local>) -> Duration {
+        let before = day - Duration::seconds(day.num_seconds_from_midnight() as i64);
         let after = before + Duration::days(1);
 
         match self.database.blocks().in_range(before, after) {
@@ -73,32 +73,31 @@ impl History {
         }
     }
 
-    pub fn start_of_week(date: Date<Local>, settings: &Settings) -> Date<Local> {
-        let year = date.year();
-        let week = date.iso_week().week();
-        let weekday = settings.start_of_week;
-        let day = NaiveDate::from_isoywd(year, week, weekday);
-        Local.from_local_date(&day).unwrap()
+    pub fn start_of_week(date: DateTime<Local>, settings: &Settings) -> DateTime<Local> {
+        let offset = match settings.start_of_week {
+            chrono::Weekday::Mon => date.weekday().num_days_from_monday(),
+            chrono::Weekday::Sun => date.weekday().num_days_from_sunday(),
+            _ => panic!("Unsupported start of week"),
+        };
+
+        let date = date - Days::new(offset as u64);
+        assert_eq!(date.weekday(), settings.start_of_week);
+        date
     }
 
-    pub fn blocks_in_week(&self, day: Date<Local>, settings: &Settings) -> (Duration, [DayBlock; 7]) {
+    pub fn blocks_in_week(&self, day: DateTime<Local>, settings: &Settings) -> (Duration, [DayBlock; 7]) {
         let mut days = <[DayBlock; 7]>::default();
-        let year = day.year();
-        let week = day.iso_week();
-        let mut weekday = settings.start_of_week;
+        let mut day = History::start_of_week(day, settings);
         let mut grand_total = Duration::zero();
         
         for dayblock in &mut days {
-            let day = NaiveDate::from_isoywd(year, week.week(), weekday);
-            let day = Local.from_local_date(&day).unwrap();
-    
             let (total, blocks) = self.blocks_in_day(day);
 
             dayblock.blocks = blocks;
             grand_total = grand_total + total;
             dayblock.total = total;
             dayblock.day = day;
-            weekday = weekday.succ();
+            day =  day + Days::new(1);
         }
 
         (grand_total, days)
@@ -110,7 +109,7 @@ impl History {
             return GoalState::ZeroGoal;
         }
 
-        let time_today = self.total_time(Local::now().date());
+        let time_today = self.total_time(Local::now());
 
         let remaining = goal - time_today;
 
@@ -127,7 +126,7 @@ impl History {
             return GoalState::ZeroGoal;
         }
 
-        let time_this_week = self.blocks_in_week(Local::now().date(), settings).0;
+        let time_this_week = self.blocks_in_week(Local::now(), settings).0;
 
         let remaining = goal - time_this_week;
 

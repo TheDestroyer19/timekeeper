@@ -1,4 +1,4 @@
-use chrono::{Duration, Local, DateTime, Date};
+use chrono::{Duration, Local, DateTime};
 use eframe::egui::{self, DragValue, RichText};
 use egui_datepicker::DatePicker;
 
@@ -49,7 +49,7 @@ impl GuiState {
         let message = match self {
             GuiState::Today => draw_today(stopwatch, history, settings, ui),
             GuiState::ThisWeek => draw_this_week(stopwatch, settings, history, ui),
-            GuiState::History(datetime) => draw_history(datetime.date(), stopwatch, history, settings, ui),
+            GuiState::History(datetime) => draw_history(*datetime, stopwatch, history, settings, ui),
             GuiState::Settings => draw_settings(settings, ui),
         };
 
@@ -154,12 +154,11 @@ fn draw_today(
     ui: &mut egui::Ui
 ) -> GuiMessage {
     let now = Local::now();
-    let today = now.date();
 
-    let (total, blocks) = history.blocks_in_day(today);
+    let (total, blocks) = history.blocks_in_day(now);
 
     ui.horizontal(|ui| {
-        ui.label(RichText::new(today.format(&settings.date_format).to_string()).heading());
+        ui.label(RichText::new(now.format(&settings.date_format).to_string()).heading());
         ui.label(RichText::new(fmt_duration(total)).heading());
     });
 
@@ -181,7 +180,7 @@ fn draw_block_table(blocks: Vec<Block>, tags: &[Tag], settings: &Settings, ui: &
                 ui.horizontal(|ui| {
                     ui.label(block.start.format(&settings.time_format).to_string());
                     ui.label("->");
-                    if block.start.date() != block.end.date() {
+                    if block.start.date_naive() != block.end.date_naive() {
                         //TODO don't add the date -- waiting on auto splitting blocks that cover multiple days
                         ui.label(block.end.format(&settings.date_format).to_string());
                     }
@@ -227,11 +226,11 @@ fn draw_block_table(blocks: Vec<Block>, tags: &[Tag], settings: &Settings, ui: &
 fn draw_this_week(stopwatch: &mut StopWatch, settings: &Settings,
     history: &mut History, ui: &mut egui::Ui) -> GuiMessage {
     let today = Local::now();
-    draw_week(today.date(), settings, stopwatch, history,  ui)
+    draw_week(today, settings, stopwatch, history,  ui)
 }
 
 fn draw_week(
-    day: chrono::Date<Local>, 
+    day: chrono::DateTime<Local>, 
     settings: &Settings, 
     stopwatch: &mut StopWatch, 
     history: &mut History,
@@ -264,24 +263,25 @@ fn draw_week(
     message
 }
 
-fn draw_history(date: Date<Local>, stopwatch: &mut StopWatch, history: &mut History, settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
+#[allow(deprecated)]
+fn draw_history(date: DateTime<Local>, stopwatch: &mut StopWatch, history: &mut History, settings: &Settings, ui: &mut egui::Ui) -> GuiMessage {
     let mut message = GuiMessage::None;
-    let mut start_of_week = History::start_of_week(date, settings);
+    let start_of_week = History::start_of_week(date, settings);
 
     ui.horizontal(|ui| {
         if ui.button("<<<").clicked() {
-            message = GuiMessage::SetState(GuiState::History((start_of_week - Duration::days(7)).and_hms(11, 0, 0)))
+            message = GuiMessage::SetState(GuiState::History(start_of_week - Duration::days(7)))
         }
-        ui.add(DatePicker::new("history-datepicker", &mut start_of_week)
+        ui.add(DatePicker::new("history-datepicker", &mut start_of_week.date())
             .date_format(&settings.week_format)
             .highlight_weekend(true)
             .movable(true)
             .sunday_first(settings.start_of_week == chrono::Weekday::Sun));
         if start_of_week != date {
-            message = GuiMessage::SetState(GuiState::History(start_of_week.and_hms(11, 0, 0)));
+            message = GuiMessage::SetState(GuiState::History(start_of_week));
         }
         if ui.button(">>>").clicked() {
-            message = GuiMessage::SetState(GuiState::History((start_of_week + Duration::days(7)).and_hms(11, 0, 0)))
+            message = GuiMessage::SetState(GuiState::History(start_of_week + Duration::days(7)))
         }
     });
 

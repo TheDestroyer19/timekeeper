@@ -41,7 +41,6 @@ pub struct Database {
 
 impl Database {
     pub fn new() -> Result<Self, anyhow::Error> {
-        //TODO implement in memory fallback
         let conn = new_disk_connection()
             .or_else(|e| {
                 tracing::warn!("{:#}", e);
@@ -209,7 +208,6 @@ fn new_disk_connection() -> Result<Connection, anyhow::Error> {
 }
 
 fn new_in_memory_connection() -> Result<Connection, anyhow::Error> {
-    //TODO implement in memory fallback
     Err(anyhow!("TODO - implement in memory fallback"))
 }
 
