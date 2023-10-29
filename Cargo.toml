@@ -17,7 +17,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 chrono = { version = "0.4.19", features = ["serde", "clock", "std"], default-features = false } # For time formatting
-eframe = { version = "0.16.0", features = ["persistence"] } # Gives us egui, epi and web+native backends
+eframe = { version = "0.23.0", features = ["persistence"] } # Gives us egui, epi and web+native backends
 egui-datepicker = "0.3.0"
 rusqlite = { version = "0.27", features = ["bundled", "chrono"] }
 directories-next = { version = "2.0.0" }
@@ -26,6 +26,7 @@ tracing-subscriber = "0.2"
 anyhow = "1.0"
 
 serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.107"
 
 [profile.release]
 opt-level = 2 # fast and small wasm

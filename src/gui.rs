@@ -1,5 +1,6 @@
 use chrono::{Duration, Local, DateTime};
 use eframe::egui::{self, DragValue, RichText};
+use eframe::epaint::Color32;
 use egui_datepicker::DatePicker;
 
 use crate::database::Tag;
@@ -121,7 +122,7 @@ pub fn draw_stopwatch(
                     "{}\tStop", fmt_duration(current.duration())
                 );
                 let button = egui::Button::new(RichText::new(text).heading())
-                    .fill(egui::color::Color32::DARK_GREEN);
+                    .fill(Color32::DARK_GREEN);
                 if ui.add(button).clicked() {
                     stopwatch.stop();
                 }
@@ -272,11 +273,11 @@ fn draw_history(date: DateTime<Local>, stopwatch: &mut StopWatch, history: &mut 
         if ui.button("<<<").clicked() {
             message = GuiMessage::SetState(GuiState::History(start_of_week - Duration::days(7)))
         }
-        ui.add(DatePicker::new("history-datepicker", &mut start_of_week.date())
-            .date_format(&settings.week_format)
-            .highlight_weekend(true)
-            .movable(true)
-            .sunday_first(settings.start_of_week == chrono::Weekday::Sun));
+        // ui.add(DatePicker::new("history-datepicker", &mut start_of_week.date())
+        //     .date_format(&settings.week_format)
+        //     .highlight_weekend(true)
+        //     .movable(true)
+        //     .sunday_first(settings.start_of_week == chrono::Weekday::Sun));
         if start_of_week != date {
             message = GuiMessage::SetState(GuiState::History(start_of_week));
         }

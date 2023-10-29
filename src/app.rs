@@ -1,13 +1,14 @@
 use std::thread;
 
 use chrono::{Duration, Weekday};
-use eframe::{egui, epi};
+use eframe::egui;
 use serde::{Serialize, Deserialize};
+use tracing::warn;
 
 use crate::gui::{draw_stopwatch, GuiState};
 use crate::history::History;
 use crate::stopwatch::StopWatch;
-use crate::{APP_NAME, SETTINGS_KEY, STATE_KEY};
+use crate::{SETTINGS_KEY, STATE_KEY};
 
 #[derive(Serialize, Deserialize)]
 #[serde(remote = "Duration")]
@@ -58,38 +59,8 @@ pub struct TimeKeeperApp {
     history: History,
 }
 
-impl epi::App for TimeKeeperApp {
-    fn name(&self) -> &str {
-        APP_NAME
-    }
-
-    /// Called once before the first frame.
-    fn setup(
-        &mut self,
-        _ctx: &egui::CtxRef,
-        frame: &epi::Frame,
-        _storage: Option<&dyn epi::Storage>,
-    ) {
-        // Load previous app state (if any).
-        if let Some(storage) = _storage {
-            self.state = epi::get_value(storage, STATE_KEY).unwrap_or_default();
-            self.settings = epi::get_value(storage, SETTINGS_KEY).unwrap_or_default();
-        }
-
-        //start up bg thread
-        let frame = frame.clone();
-        thread::spawn(|| bg_timer(frame));
-    }
-
-    /// Called by the frame work to save state before shutdown.
-    fn save(&mut self, storage: &mut dyn epi::Storage) {
-        epi::set_value(storage, STATE_KEY, &self.state);
-        epi::set_value(storage, SETTINGS_KEY, &self.settings);
-    }
-
-    /// Called each time the UI needs repainting, which may be many times per second.
-    /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
-    fn update(&mut self, ctx: &egui::CtxRef, _frame: &epi::Frame) {
+impl eframe::App for TimeKeeperApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("tabs").show(ctx, |ui| {
             self.state.draw_tabs(ui);
         });
@@ -105,11 +76,48 @@ impl epi::App for TimeKeeperApp {
             })
         });
     }
+
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        storage.set_string(STATE_KEY, serde_json::to_string(&self.state).unwrap());
+        storage.set_string(SETTINGS_KEY, serde_json::to_string(&self.settings).unwrap());
+    }
+}
+
+impl TimeKeeperApp {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        // Customize egui here with cc.egui_ctx.set_fonts and cc.egui_ctx.set_visuals.
+        // Restore app state using cc.storage (requires the "persistence" feature).
+        // Use the cc.gl (a glow::Context) to create graphics shaders and buffers that you can use
+        // for e.g. egui::PaintCallback.
+        let mut r = Self::default();
+        
+        // load previous state if any
+        if let Some(storage) = cc.storage {
+            if let Some(settings) = storage.get_string(SETTINGS_KEY) {
+                match serde_json::from_str(&settings) {
+                    Ok(value) => r.settings = value,
+                    Err(e) => warn!("Failed to read settings: {:?}", e),
+                };
+            }
+            if let Some(state) = storage.get_string(STATE_KEY) {
+                match serde_json::from_str(&state) {
+                    Ok(value) => r.state = value,
+                    Err(e) => warn!("Failed to read state: {:?}", e),
+                };
+            }
+        }
+
+        //start update thread
+        let ctx = cc.egui_ctx.clone();
+        thread::spawn(|| bg_timer(ctx));
+
+        r
+    }
 }
 
 /// thread to update the gui regularly.
 /// This could be improved to only do it while the timer is active and the window is visible
-fn bg_timer(frame: epi::Frame) {
+fn bg_timer(frame: egui::Context) {
     let one_second = Duration::seconds(1)
         .to_std()
         .expect("1 second should be in range");
