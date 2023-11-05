@@ -1,55 +1,16 @@
 use std::thread;
 
-use chrono::{Duration, Weekday};
+use chrono::Duration;
 use eframe::egui;
-use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::gui::{draw_stopwatch, GuiState};
 use crate::history::History;
+use crate::settings::Settings;
 use crate::stopwatch::StopWatch;
-use crate::{SETTINGS_KEY, STATE_KEY};
 
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "Duration")]
-struct DurationDef {
-    #[serde(getter = "Duration::num_seconds")]
-    secs: i64,
-}
-impl From<DurationDef> for Duration {
-    fn from(d: DurationDef) -> Self {
-        Duration::seconds(d.secs)
-    }
-}
-
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)] // if we add new fields, give them default values when deserializing old state
-pub struct Settings {
-    pub week_format: String,
-    pub date_format: String,
-    pub time_format: String,
-
-    pub start_of_week: Weekday,
-
-    #[serde(with = "DurationDef")]
-    pub daily_goal: Duration,
-    #[serde(with = "DurationDef")]
-    pub weekly_goal: Duration,
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            week_format: "Week of %B %e, %Y".into(),
-            date_format: "%y-%m-%d".into(),
-            time_format: "%H:%M".into(),
-            start_of_week: Weekday::Mon,
-            daily_goal: Duration::hours(8),
-            weekly_goal: Duration::hours(40),
-        }
-    }
-}
+const SETTINGS_KEY: &str = "Settings";
+const STATE_KEY: &str = "State";
 
 #[derive(Default)]
 pub struct TimeKeeperApp {
@@ -83,7 +44,7 @@ impl eframe::App for TimeKeeperApp {
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         storage.set_string(STATE_KEY, serde_json::to_string(&self.state).unwrap());
-        storage.set_string(SETTINGS_KEY, serde_json::to_string(&self.settings).unwrap());
+        storage.set_string(SETTINGS_KEY, self.settings.serialize());
     }
 }
 
@@ -97,12 +58,7 @@ impl TimeKeeperApp {
 
         // load previous state if any
         if let Some(storage) = cc.storage {
-            if let Some(settings) = storage.get_string(SETTINGS_KEY) {
-                match serde_json::from_str(&settings) {
-                    Ok(value) => r.settings = value,
-                    Err(e) => warn!("Failed to read settings: {:?}", e),
-                };
-            }
+            r.settings = Settings::deserailize(storage.get_string(SETTINGS_KEY));
             if let Some(state) = storage.get_string(STATE_KEY) {
                 match serde_json::from_str(&state) {
                     Ok(value) => r.state = value,

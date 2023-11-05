@@ -6,7 +6,7 @@ use tracing::info;
 
 use crate::database::Tag;
 use crate::history::{DayBlock, GoalState, History};
-use crate::{app::Settings, database::Block, stopwatch::StopWatch};
+use crate::{settings::Settings, database::Block, stopwatch::StopWatch};
 
 #[derive(serde::Deserialize, serde::Serialize, Eq)]
 pub enum GuiState {
@@ -37,7 +37,7 @@ impl GuiState {
         });
     }
 
-    pub fn draw_screen(
+    pub(crate) fn draw_screen(
         &mut self,
         stopwatch: &mut StopWatch,
         history: &mut History,
@@ -70,7 +70,7 @@ enum GuiMessage {
     SetState(GuiState),
 }
 
-pub fn draw_goals(
+pub(crate) fn draw_goals(
     stopwatch: &mut StopWatch,
     history: &mut History,
     settings: &Settings,
@@ -98,7 +98,7 @@ pub fn draw_goals(
     );
 }
 
-pub fn draw_goal(
+pub(crate) fn draw_goal(
     label: &str,
     running: bool,
     state: GoalState,
@@ -129,7 +129,7 @@ pub fn draw_goal(
     }
 }
 
-pub fn draw_stopwatch(
+pub(crate) fn draw_stopwatch(
     stopwatch: &mut StopWatch,
     history: &mut History,
     settings: &Settings,
@@ -309,7 +309,7 @@ fn draw_history(
 
     let r = ui.horizontal(|ui| {
         if ui.button("<<<").clicked() {
-            return GuiMessage::SetState(GuiState::History(start_of_week - Duration::days(7)))
+            return GuiMessage::SetState(GuiState::History(start_of_week - Duration::days(7)));
         }
         let mut naive_date = start_of_week.date_naive();
         ui.add(DatePickerButton::new(&mut naive_date));
@@ -364,13 +364,6 @@ fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {
             ui.end_row();
             ui.label("");
             ui.label(now.format(&settings.date_format).to_string());
-            ui.end_row();
-
-            ui.label("Week Format:");
-            ui.text_edit_singleline(&mut settings.week_format);
-            ui.end_row();
-            ui.label("");
-            ui.label(now.format(&settings.week_format).to_string());
             ui.end_row();
 
             ui.label("Time Format:");

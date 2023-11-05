@@ -1,7 +1,7 @@
 use chrono::{DateTime, Datelike, Days, Duration, Local, Timelike};
 
 use crate::{
-    app::Settings,
+    settings::Settings,
     database::{Block, Database},
 };
 
@@ -79,7 +79,7 @@ impl History {
         }
     }
 
-    pub fn start_of_week(date: DateTime<Local>, settings: &Settings) -> DateTime<Local> {
+    pub(crate) fn start_of_week(date: DateTime<Local>, settings: &Settings) -> DateTime<Local> {
         let offset = match settings.start_of_week {
             chrono::Weekday::Mon => date.weekday().num_days_from_monday(),
             chrono::Weekday::Sun => date.weekday().num_days_from_sunday(),
@@ -91,7 +91,7 @@ impl History {
         date
     }
 
-    pub fn blocks_in_week(
+    pub(crate) fn blocks_in_week(
         &self,
         day: DateTime<Local>,
         settings: &Settings,
