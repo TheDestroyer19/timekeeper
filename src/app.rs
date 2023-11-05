@@ -2,7 +2,7 @@ use std::thread;
 
 use chrono::{Duration, Weekday};
 use eframe::egui;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::gui::{draw_stopwatch, GuiState};
@@ -13,8 +13,8 @@ use crate::{SETTINGS_KEY, STATE_KEY};
 #[derive(Serialize, Deserialize)]
 #[serde(remote = "Duration")]
 struct DurationDef {
-    #[serde(getter="Duration::num_seconds")]
-    secs: i64
+    #[serde(getter = "Duration::num_seconds")]
+    secs: i64,
 }
 impl From<DurationDef> for Duration {
     fn from(d: DurationDef) -> Self {
@@ -71,8 +71,12 @@ impl eframe::App for TimeKeeperApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                self.state
-                    .draw_screen(&mut self.stopwatch, &mut self.history, &mut self.settings, ui)
+                self.state.draw_screen(
+                    &mut self.stopwatch,
+                    &mut self.history,
+                    &mut self.settings,
+                    ui,
+                )
             })
         });
     }
@@ -90,7 +94,7 @@ impl TimeKeeperApp {
         // Use the cc.gl (a glow::Context) to create graphics shaders and buffers that you can use
         // for e.g. egui::PaintCallback.
         let mut r = Self::default();
-        
+
         // load previous state if any
         if let Some(storage) = cc.storage {
             if let Some(settings) = storage.get_string(SETTINGS_KEY) {

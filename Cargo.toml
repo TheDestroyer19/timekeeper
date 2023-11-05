@@ -18,7 +18,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 chrono = { version = "0.4.19", features = ["serde", "clock", "std"], default-features = false } # For time formatting
 eframe = { version = "0.23.0", features = ["persistence"] } # Gives us egui, epi and web+native backends
-egui-datepicker = "0.3.0"
+egui_extras = { version = "0.23.0", features = ["datepicker"]}
 rusqlite = { version = "0.29", features = ["bundled", "chrono"] }
 directories-next = { version = "2.0.0" }
 tracing = { version = "0.1.40" }

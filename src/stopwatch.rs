@@ -1,6 +1,6 @@
 use chrono::Local;
 
-use crate::database::{Database, Block};
+use crate::database::{Block, Database};
 
 pub struct StopWatch {
     database: Database,
@@ -8,7 +8,9 @@ pub struct StopWatch {
 
 impl Default for StopWatch {
     fn default() -> Self {
-        Self { database: Database::new().unwrap() }
+        Self {
+            database: Database::new().unwrap(),
+        }
     }
 }
 

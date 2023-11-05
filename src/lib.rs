@@ -3,10 +3,10 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
 mod app;
-mod gui;
-mod stopwatch;
-mod history;
 mod database;
+mod gui;
+mod history;
+mod stopwatch;
 pub use app::TimeKeeperApp;
 
 pub const APP_NAME: &str = "TimeKeeper";

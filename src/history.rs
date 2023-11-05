@@ -1,8 +1,8 @@
-use chrono::{Local, Duration, Datelike, DateTime, Timelike, Days};
+use chrono::{DateTime, Datelike, Days, Duration, Local, Timelike};
 
 use crate::{
-    database::{Database, Block}, 
-    app::Settings
+    app::Settings,
+    database::{Block, Database},
 };
 
 pub enum GoalState {
@@ -19,7 +19,11 @@ pub struct DayBlock {
 }
 impl Default for DayBlock {
     fn default() -> Self {
-        Self { day: Local::now(), blocks: Default::default(), total: Duration::zero() }
+        Self {
+            day: Local::now(),
+            blocks: Default::default(),
+            total: Duration::zero(),
+        }
     }
 }
 
@@ -29,7 +33,9 @@ pub struct History {
 
 impl Default for History {
     fn default() -> Self {
-        Self { database: Database::new().unwrap() }
+        Self {
+            database: Database::new().unwrap(),
+        }
     }
 }
 
@@ -48,9 +54,10 @@ impl History {
             Err(e) => {
                 tracing::warn!("{:#}", e);
                 (Duration::zero(), Vec::new())
-            },
+            }
             Ok(blocks) => {
-                let total = blocks.iter()
+                let total = blocks
+                    .iter()
                     .fold(Duration::zero(), |a, b| a + b.duration());
                 (total, blocks)
             }
@@ -65,11 +72,10 @@ impl History {
             Err(e) => {
                 tracing::warn!("{:#}", e);
                 Duration::zero()
-            },
-            Ok(blocks) => {
-                blocks.iter()
-                    .fold(Duration::zero(), |a, b| a + b.duration())
             }
+            Ok(blocks) => blocks
+                .iter()
+                .fold(Duration::zero(), |a, b| a + b.duration()),
         }
     }
 
@@ -85,11 +91,15 @@ impl History {
         date
     }
 
-    pub fn blocks_in_week(&self, day: DateTime<Local>, settings: &Settings) -> (Duration, [DayBlock; 7]) {
+    pub fn blocks_in_week(
+        &self,
+        day: DateTime<Local>,
+        settings: &Settings,
+    ) -> (Duration, [DayBlock; 7]) {
         let mut days = <[DayBlock; 7]>::default();
         let mut day = History::start_of_week(day, settings);
         let mut grand_total = Duration::zero();
-        
+
         for dayblock in &mut days {
             let (total, blocks) = self.blocks_in_day(day);
 
@@ -97,14 +107,14 @@ impl History {
             grand_total = grand_total + total;
             dayblock.total = total;
             dayblock.day = day;
-            day =  day + Days::new(1);
+            day = day + Days::new(1);
         }
 
         (grand_total, days)
     }
 
     pub(crate) fn remaining_daily_goal(&self, settings: &Settings) -> GoalState {
-        let goal  = settings.daily_goal;
+        let goal = settings.daily_goal;
         if goal <= Duration::zero() {
             return GoalState::ZeroGoal;
         }
@@ -121,7 +131,7 @@ impl History {
     }
 
     pub(crate) fn remaining_weekly_goal(&self, settings: &Settings) -> GoalState {
-        let goal  = settings.weekly_goal;
+        let goal = settings.weekly_goal;
         if goal <= Duration::zero() {
             return GoalState::ZeroGoal;
         }
