@@ -13,35 +13,26 @@ impl Default for StopWatch {
 }
 
 impl StopWatch {
-
     pub fn start(&mut self) {
-        if let Err(e) = self.database.blocks().insert(|block| block.running = true) {
-            tracing::warn!("{:#}", e);
+        match self.database.stopwatch().start(None) {
+            Ok(()) => tracing::info!("Started stopwatch at {:?}", Local::now()),
+            Err(e) => tracing::warn!("{:#}", e),
         }
     }
 
     pub fn stop(&mut self) {
-        if let Some(mut block) = self.current() {
-            block.running = false;
-            match self.database.blocks().update_running(block) {
-                Ok(()) => (),
-                Err(e) => tracing::warn!("{:#}", e),
-            }
-        } else {
-            tracing::warn!("Tried to stop the stopwatch when it wasn't running")
+        match self.database.stopwatch().stop() {
+            Ok(()) => tracing::info!("Stopped stopwatch at {:?}", Local::now()),
+            Err(e) => tracing::warn!("{:#}", e),
         }
     }
 
     pub fn current(&mut self) -> Option<Block> {
+        if let Err(e) = self.database.stopwatch().update() {
+            tracing::warn!("{:#}", e);
+        }
         match self.database.blocks().current() {
-            Ok(Some(mut block)) => {
-                block.end = Local::now();
-                if let Err(e) = self.database.blocks().update_running(block.clone()) {
-                    tracing::warn!("{:#}", e);
-                };
-                Some(block)
-            },
-            Ok(None) => None,
+            Ok(block) => block,
             Err(e) => {
                 tracing::warn!("{:#}", e);
                 None

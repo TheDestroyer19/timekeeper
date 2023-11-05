@@ -62,6 +62,13 @@ impl Database {
         })
     }
 
+    pub fn stopwatch(&self) -> StopWatch<'_> {
+        StopWatch {
+            conn: &self.conn,
+            now: Local::now(),
+        }
+    }
+
     pub fn blocks(&self) -> Blocks<'_> {
         Blocks {
             conn: &self.conn
@@ -84,11 +91,60 @@ impl Database {
     }
 }
 
+pub struct StopWatch<'a> {
+    conn: &'a Connection,
+    now: DateTime<Local>,
+}
+
+impl <'a> StopWatch<'a> {
+    /// Start the stopwatch
+    pub fn start(&self, tag: Option<Tag>) -> Result<(), anyhow::Error> {
+        let block = Block {
+            id: 0,
+            start: self.now,
+            end: self.now,
+            tag,
+            running: true,
+        };
+
+        let tag = block.tag.as_ref().map(|t| t.id);
+        let running = if block.running { Some("Y") } else { None };
+
+        self.conn.execute("
+            INSERT INTO time_blocks (start, end, tag, running)
+            VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![block.start, block.end, tag, running])
+            .map(|_| ())
+            .context("Trying to insert block into database")
+    }
+
+    /// Stops any running blocks
+    pub fn stop(&self) -> Result<(), anyhow::Error> {
+        self.conn.execute(
+            "UPDATE time_blocks SET end = ?1, running = ?2 WHERE running = ?3",
+            rusqlite::params![self.now, Option::<&str>::None, "Y"]
+        )
+        .map(|_| ())
+        .context("Trying to stop running blocks")
+    }
+
+    /// Update end times on running blocks
+    pub fn update(&self) -> Result<(), anyhow::Error> {
+        self.conn.execute(
+            "UPDATE time_blocks SET end = ?1 WHERE running = ?2",
+            rusqlite::params![self.now, "Y"]
+        )
+        .map(|_| ())
+        .context("Trying to stop running blocks")
+    }
+}
+
 pub struct Blocks<'a> {
     conn: &'a Connection,
 }
 
 impl<'a> Blocks<'a> {
+    /// Converts a rustqlite row into a block
     fn to_blocks(row: &rusqlite::Row<'_>) -> Result<Block, rusqlite::Error> {
         let running: Option<String> = row.get(3)?;
         let running = running.filter(|s| s == "Y").is_some();
@@ -102,42 +158,6 @@ impl<'a> Blocks<'a> {
             tag,
             running,
         })
-    }
-
-    pub fn insert<F>(&self, init: F) -> Result<(), anyhow::Error>
-    where F: FnOnce(&mut Block) {
-        let now = Local::now();
-        let mut block = Block {
-            id: 0,
-            start: now,
-            end: now,
-            tag: None,
-            running: true,
-        };
-
-        init(&mut block);
-
-        let tag = block.tag.as_ref().map(|t| t.id);
-        let running = if block.running { Some("Y") } else { None };
-
-        self.conn.execute("
-            INSERT INTO time_blocks (start, end, tag, running)
-            VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params![block.start, block.end, tag, running])
-            .map(|_| ())
-            .context("Trying to insert block into database")
-    }
-
-    pub fn update_running(&self, block: Block) -> Result<(), anyhow::Error> {
-        let running = if block.running { Some("Y") } else { None };
-        self.conn.execute(
-            "UPDATE time_blocks
-            SET end = ?2, running = ?3
-            WHERE id = ?1",
-            rusqlite::params![block.id, block.end, running]
-        )
-        .map(|_| ())
-        .context("Trying to update a block")
     }
 
     pub fn update_tag(&self, block: Block) -> Result<(), anyhow::Error> {
