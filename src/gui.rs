@@ -221,7 +221,7 @@ fn draw_block_table(
                     } else {
                         ""
                     };
-                    egui::ComboBox::from_id_source(block.id())
+                    egui::ComboBox::from_id_salt(block.id())
                         .selected_text(tag_text)
                         .show_ui(ui, |ui| {
                             for tag in tags {
@@ -388,14 +388,14 @@ fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {
 
                 ui.add(
                     DragValue::new(&mut hours)
-                        .clamp_range(0.0..=24.0)
+                        .range(0.0..=24.0)
                         .speed(0.2)
                         .fixed_decimals(0)
                         .suffix(" hours"),
                 );
                 ui.add(
                     DragValue::new(&mut minutes)
-                        .clamp_range(0.0..=60.0)
+                        .range(0.0..=60.0)
                         .speed(0.2)
                         .fixed_decimals(0)
                         .suffix(" minutes"),
@@ -412,14 +412,14 @@ fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {
 
                 ui.add(
                     DragValue::new(&mut hours)
-                        .clamp_range(0.0..=168.0)
+                        .range(0.0..=168.0)
                         .speed(0.2)
                         .fixed_decimals(0)
                         .suffix(" hours"),
                 );
                 ui.add(
                     DragValue::new(&mut minutes)
-                        .clamp_range(0.0..=60.0)
+                        .range(0.0..=60.0)
                         .speed(0.2)
                         .fixed_decimals(0)
                         .suffix(" minutes"),

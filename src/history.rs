@@ -104,7 +104,7 @@ impl History {
             let (total, blocks) = self.blocks_in_day(day);
 
             dayblock.blocks = blocks;
-            grand_total = grand_total + total;
+            grand_total += total;
             dayblock.total = total;
             dayblock.day = day;
             day = day + Days::new(1);

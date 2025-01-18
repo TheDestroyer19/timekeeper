@@ -19,7 +19,7 @@ fn main() {
     let finish = eframe::run_native(
         APP_NAME,
         native_options,
-        Box::new(|cc| Box::new(timekeeper::TimeKeeperApp::new(cc))),
+        Box::new(|cc| Ok(Box::new(timekeeper::TimeKeeperApp::new(cc)))),
     );
 
     if let Err(e) = finish {

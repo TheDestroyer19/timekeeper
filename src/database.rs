@@ -42,7 +42,7 @@ pub struct Database {
 impl Database {
     pub fn new() -> Result<Self, anyhow::Error> {
         let conn = new_disk_connection().or_else(|e| {
-            tracing::warn!("{:#}", e);
+            tracing::warn!("Failed to open or create database on disk. Records will not be persisted. Error is {:#}", e);
             new_in_memory_connection()
         })?;
 
