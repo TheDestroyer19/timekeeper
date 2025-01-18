@@ -1,11 +1,15 @@
 use anyhow::Context;
 use rusqlite::Connection;
+use tracing::info;
 
 pub fn migrate(connection: &mut Connection) -> anyhow::Result<()> {
     let version = database_version(connection)?;
 
     if version < 1 {
-        build_database(connection)?;
+        v0_to_v1(connection).context("Creating initial database")?;
+    }
+    if version < 2 {
+        v1_to_v2(connection).context("Migrate to database version 2")?;
     }
 
     Ok(())
@@ -43,8 +47,10 @@ fn database_version(conn: &Connection) -> anyhow::Result<usize> {
 
 }
 
-fn build_database(conn: &Connection) -> anyhow::Result<()> {
-    conn.execute(
+fn v0_to_v1(conn: &mut Connection) -> anyhow::Result<()> {
+    info!("Initializing database");
+    let tx = conn.transaction()?;
+    tx.execute(
         r#"CREATE TABLE "tags" (
             "id"	INTEGER NOT NULL,
             "name"	TEXT NOT NULL UNIQUE,
@@ -54,7 +60,7 @@ fn build_database(conn: &Connection) -> anyhow::Result<()> {
     [], // empty list of parameters.
     )
     .context("Failed to initailize tags table")?;
-    conn.execute(
+    tx.execute(
         r#"
         CREATE TABLE "time_blocks" (
             "id"	INTEGER,
@@ -68,6 +74,36 @@ fn build_database(conn: &Connection) -> anyhow::Result<()> {
     [],
     )
     .context("Failed to initailize time_blocks table")?;
+
+    tx.commit()?;
+
+    Ok(())
+}
+
+fn v1_to_v2(conn: &mut Connection) -> anyhow::Result<()> {
+    info!("Migrating to database version 2");
+    let tx = conn.transaction()?;
+    tx.execute(
+        r#"CREATE TABLE "app_info" (
+        "id" INTEGER NOT NULL,
+        "key" TEXT NOT NULL,
+        "value" NOT NULL,
+        PRIMARY KEY("id")
+    );"#,
+        []
+    ).context("failed to create app_info table")?;
+
+    tx.execute(r#"ALTER TABLE tags DROP protected"#, [])
+        .context("Failed to remove `protected` column from tags table")?;
+    tx.execute(r#"ALTER TABLE tags ADD to_delete CHECK("to_delete" = 'Y')"#, [])
+        .context("Failed to add `to_delete` column to tags table")?;
+
+    tx.execute(
+        r#"INSERT INTO app_info (key, value) VALUES (?1, ?2)"#,
+                 rusqlite::params!["version", 2]
+    ).context("failed to set database version")?;
+
+    tx.commit()?;
 
     Ok(())
 }
