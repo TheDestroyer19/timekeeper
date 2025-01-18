@@ -279,7 +279,6 @@ fn draw_week(
             fmt_duration(total)
         );
         egui::CollapsingHeader::new(RichText::new(header).heading())
-            .id_source(day)
             .show(ui, |ui| {
                 message = draw_block_table(blocks, tags, settings, ui);
             });
