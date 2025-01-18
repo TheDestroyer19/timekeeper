@@ -98,7 +98,7 @@ pub struct StopWatch<'a> {
     now: DateTime<Local>,
 }
 
-impl<'a> StopWatch<'a> {
+impl StopWatch<'_> {
     /// Start the stopwatch
     pub fn start(&self, tag: Option<Tag>) -> Result<(), anyhow::Error> {
         let block = Block {
@@ -150,7 +150,7 @@ pub struct Blocks<'a> {
     conn: &'a Connection,
 }
 
-impl<'a> Blocks<'a> {
+impl Blocks<'_> {
     /// Converts a rustqlite row into a block
     fn to_blocks(row: &rusqlite::Row<'_>) -> Result<Block, rusqlite::Error> {
         let running: Option<String> = row.get(3)?;

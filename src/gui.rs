@@ -8,8 +8,9 @@ use crate::database::Tag;
 use crate::history::{DayBlock, GoalState, History};
 use crate::{settings::Settings, database::Block, stopwatch::StopWatch};
 
-#[derive(serde::Deserialize, serde::Serialize, Eq)]
+#[derive(serde::Deserialize, serde::Serialize, Eq, Default)]
 pub enum GuiState {
+    #[default]
     Today,
     ThisWeek,
     History(DateTime<Local>),
@@ -18,12 +19,6 @@ pub enum GuiState {
 impl PartialEq for GuiState {
     fn eq(&self, other: &Self) -> bool {
         core::mem::discriminant(self) == core::mem::discriminant(other)
-    }
-}
-
-impl Default for GuiState {
-    fn default() -> Self {
-        GuiState::Today
     }
 }
 
@@ -280,7 +275,7 @@ fn draw_week(
         }
         let header = format!(
             "{} - {}",
-            day.format(&settings.date_format).to_string(),
+            day.format(&settings.date_format),
             fmt_duration(total)
         );
         egui::CollapsingHeader::new(RichText::new(header).heading())
@@ -343,7 +338,7 @@ fn draw_history(
 
     ui.separator();
 
-    return draw_week(start_of_week, settings, stopwatch, history, ui);
+    draw_week(start_of_week, settings, stopwatch, history, ui)
 }
 
 fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {
