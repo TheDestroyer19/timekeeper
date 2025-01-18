@@ -4,6 +4,8 @@ use rusqlite::Connection;
 
 use crate::APP_NAME;
 
+mod migrations;
+
 /// A block of time
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct Block {
@@ -41,22 +43,12 @@ pub struct Database {
 
 impl Database {
     pub fn new() -> Result<Self, anyhow::Error> {
-        let conn = new_disk_connection().or_else(|e| {
+        let mut conn = new_disk_connection().or_else(|e| {
             tracing::warn!("Failed to open or create database on disk. Records will not be persisted. Error is {:#}", e);
             new_in_memory_connection()
         })?;
 
-        match conn.query_row(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='time_blocks';",
-            [],
-            |row| row.get::<usize, String>(0),
-        ) {
-            Ok(_) => (),
-            Err(rusqlite::Error::QueryReturnedNoRows) => build_database(&conn)?,
-            err => err
-                .context("Failed to check if database initialized")
-                .map(|_| ())?,
-        }
+        migrations::migrate(&mut conn)?;
 
         Ok(Self { conn })
     }
@@ -253,33 +245,4 @@ fn new_disk_connection() -> Result<Connection, anyhow::Error> {
 
 fn new_in_memory_connection() -> Result<Connection, anyhow::Error> {
     Err(anyhow!("TODO - implement in memory fallback"))
-}
-
-fn build_database(conn: &Connection) -> Result<(), anyhow::Error> {
-    conn.execute(
-        r#"CREATE TABLE "tags" (
-            "id"	INTEGER NOT NULL,
-            "name"	TEXT NOT NULL UNIQUE,
-            "protected"	TEXT CHECK("protected" = 'Y'),
-            PRIMARY KEY("id")
-        );"#,
-        [], // empty list of parameters.
-    )
-    .context("Failed to initailize tags table")?;
-    conn.execute(
-        r#"
-        CREATE TABLE "time_blocks" (
-            "id"	INTEGER,
-            "start"	TEXT NOT NULL,
-            "end"	TEXT NOT NULL,
-            "running"	TEXT CHECK("running" = 'Y') UNIQUE,
-            "tag"	INTEGER,
-            FOREIGN KEY("tag") REFERENCES "tags"("id"),
-            PRIMARY KEY("id")
-        );"#,
-        [],
-    )
-    .context("Failed to initailize time_blocks table")?;
-
-    Ok(())
 }
