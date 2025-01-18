@@ -64,24 +64,8 @@ impl Database {
         Blocks { conn: &self.conn }
     }
 
-    pub fn all_tags(&self) -> Result<Vec<Tag>, anyhow::Error> {
-        self.conn
-            .prepare(
-                "
-                SELECT
-                    id, name
-                FROM tags",
-            )
-            .context("Preparing to get all tags")?
-            .query_map([], |row| {
-                Ok(Tag {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                })
-            })
-            .context("Trying to get all tags")?
-            .map(|r| r.context("Trying to map row to Tag struct"))
-            .collect()
+    pub fn tags(&self) -> Tags<'_> {
+        Tags { conn: &self.conn }
     }
 }
 
@@ -221,6 +205,50 @@ impl Blocks<'_> {
             .context("Trying to get all blocks")?
             .map(|r| r.context("Trying to map row to Block struct"))
             .collect()
+    }
+}
+
+pub struct Tags<'a> {
+    conn: &'a Connection
+}
+
+impl Tags<'_> {
+    pub fn all(&self) -> Result<Vec<Tag>, anyhow::Error> {
+        self.conn
+        .prepare(
+            "
+            SELECT
+            id, name
+            FROM tags
+            WHERE to_delete != 'Y'",
+        )
+        .context("Preparing to get all tags")?
+        .query_map([], |row| {
+            Ok(Tag {
+                id: row.get(0)?,
+               name: row.get(1)?,
+            })
+        })
+        .context("Trying to get all tags")?
+        .map(|r| r.context("Trying to map row to Tag struct"))
+        .collect()
+    }
+
+    pub fn create(&self, name: &str) -> anyhow::Result<()> {
+        todo!()
+    }
+
+    pub fn rename(&self, tag: Tag, new_name: &str) -> anyhow::Result<()> {
+        todo!()
+    }
+
+    pub fn delete(&self, tag: Tag) -> anyhow::Result<()> {
+        todo!()
+    }
+
+    /// Remove tags that have been marked for deletion and are no longer found in tags
+    pub fn maintain(&self) -> anyhow::Result<()> {
+        todo!()
     }
 }
 

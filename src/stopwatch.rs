@@ -43,7 +43,7 @@ impl StopWatch {
     }
 
     pub(crate) fn all_tags(&self) -> Vec<crate::database::Tag> {
-        match self.database.all_tags() {
+        match self.database.tags().all() {
             Ok(value) => value,
             Err(e) => {
                 tracing::warn!("{:#}", e);
