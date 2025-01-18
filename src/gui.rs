@@ -229,8 +229,10 @@ fn draw_block_table(
                             for tag in tags {
                                 ui.selectable_value(&mut block.tag, Some(tag.clone()), &tag.name);
                             }
-                            ui.separator();
-                            ui.selectable_value(&mut block.tag, None, "Remove tag");
+                            if old_tag.is_some() {
+                                ui.separator();
+                                ui.selectable_value(&mut block.tag, None, "Remove tag");
+                            }
                         });
 
                     to_delete = ui.button("X").clicked();
