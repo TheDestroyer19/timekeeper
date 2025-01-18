@@ -7,7 +7,6 @@ mod database;
 mod gui;
 mod history;
 mod settings;
-mod stopwatch;
 pub use app::TimeKeeperApp;
 
 pub const APP_NAME: &str = "TimeKeeper";

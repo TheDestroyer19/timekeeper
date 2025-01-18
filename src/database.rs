@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Duration, Local};
 use rusqlite::Connection;
+use tracing::info;
 
 use crate::APP_NAME;
 
@@ -96,7 +97,10 @@ impl StopWatch<'_> {
                 rusqlite::params![block.start, block.end, tag, running],
             )
             .map(|_| ())
-            .context("Trying to insert block into database")
+            .context("Trying to insert block into database")?;
+
+        info!("Started stopwatch at {:?}", self.now);
+        Ok(())
     }
 
     /// Stops any running blocks
@@ -107,7 +111,9 @@ impl StopWatch<'_> {
                 rusqlite::params![self.now, Option::<&str>::None, "Y"],
             )
             .map(|_| ())
-            .context("Trying to stop running blocks")
+            .context("Trying to stop running blocks")?;
+        info!("Stopped stopwatch at {:?}", self.now);
+        Ok(())
     }
 
     /// Update end times on running blocks
@@ -234,22 +240,22 @@ impl Tags<'_> {
         .collect()
     }
 
-    pub fn create(&self, name: &str) -> anyhow::Result<()> {
-        todo!()
-    }
-
-    pub fn rename(&self, tag: Tag, new_name: &str) -> anyhow::Result<()> {
-        todo!()
-    }
-
-    pub fn delete(&self, tag: Tag) -> anyhow::Result<()> {
-        todo!()
-    }
-
-    /// Remove tags that have been marked for deletion and are no longer found in tags
-    pub fn maintain(&self) -> anyhow::Result<()> {
-        todo!()
-    }
+    // pub fn create(&self, name: &str) -> anyhow::Result<()> {
+    //     todo!()
+    // }
+    //
+    // pub fn rename(&self, tag: Tag, new_name: &str) -> anyhow::Result<()> {
+    //     todo!()
+    // }
+    //
+    // pub fn delete(&self, tag: Tag) -> anyhow::Result<()> {
+    //     todo!()
+    // }
+    //
+    // /// Remove tags that have been marked for deletion and are no longer found in tags
+    // pub fn maintain(&self) -> anyhow::Result<()> {
+    //     todo!()
+    // }
 }
 
 fn new_disk_connection() -> Result<Connection, anyhow::Error> {

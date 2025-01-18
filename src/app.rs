@@ -4,42 +4,45 @@ use chrono::Duration;
 use eframe::egui;
 use tracing::warn;
 
-use crate::gui::{draw_stopwatch, GuiState};
+use crate::database::Database;
+use crate::gui::{draw_stopwatch, GuiMessage, GuiState};
 use crate::history::History;
 use crate::settings::Settings;
-use crate::stopwatch::StopWatch;
 
 const SETTINGS_KEY: &str = "Settings";
 const STATE_KEY: &str = "State";
 
-#[derive(Default)]
 pub struct TimeKeeperApp {
     state: GuiState,
     settings: Settings,
-    stopwatch: StopWatch,
-    history: History,
+    database: Database,
 }
 
 impl eframe::App for TimeKeeperApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.database.stopwatch().update().unwrap();
+        let current = self.database.blocks().current().unwrap();
+
         egui::TopBottomPanel::top("tabs").show(ctx, |ui| {
             self.state.draw_tabs(ui);
         });
 
-        egui::TopBottomPanel::bottom("stopwatch").show(ctx, |ui| {
-            draw_stopwatch(&mut self.stopwatch, &mut self.history, &self.settings, ui);
-        });
+        let message  = egui::TopBottomPanel::bottom("stopwatch").show(ctx, |ui| {
+            draw_stopwatch(current, History::new(&self.database), &self.settings, ui)
+        }).inner;
+        self.handle_message(message);
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+
+        let message = egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 self.state.draw_screen(
-                    &mut self.stopwatch,
-                    &mut self.history,
+                    &self.database,
                     &mut self.settings,
                     ui,
                 )
-            })
-        });
+            }).inner
+        }).inner.unwrap();
+        self.handle_message(message);
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
@@ -54,24 +57,50 @@ impl TimeKeeperApp {
         // Restore app state using cc.storage (requires the "persistence" feature).
         // Use the cc.gl (a glow::Context) to create graphics shaders and buffers that you can use
         // for e.g. egui::PaintCallback.
-        let mut r = Self::default();
+        let settings: Settings;
+        let state: GuiState;
 
         // load previous state if any
         if let Some(storage) = cc.storage {
-            r.settings = Settings::deserailize(storage.get_string(SETTINGS_KEY));
-            if let Some(state) = storage.get_string(STATE_KEY) {
-                match serde_json::from_str(&state) {
-                    Ok(value) => r.state = value,
-                    Err(e) => warn!("Failed to read state: {:?}", e),
-                };
+            settings = Settings::deserailize(storage.get_string(SETTINGS_KEY));
+            if let Some(value) = storage.get_string(STATE_KEY).and_then(|s| serde_json::from_str(&s).ok()) {
+                state = value;
+            } else {
+                warn!("Failed to read gui state");
+                state = GuiState::default();
             }
+        } else {
+            settings = Settings::default();
+            state = GuiState::default();
         }
 
         //start update thread
         let ctx = cc.egui_ctx.clone();
         thread::spawn(|| bg_timer(ctx));
 
-        r
+        Self {
+            state,
+            settings,
+            database: Database::new().unwrap(),
+        }
+    }
+
+    fn handle_message(&mut self, message: GuiMessage) {
+        let result: anyhow::Result<()> = (|| {
+            match message {
+                GuiMessage::None => (),
+                GuiMessage::ChangedBlockTag(block) => self.database.blocks().update_tag(block)?,
+                GuiMessage::DeletedBlock(block) => History::new(&self.database).delete_block(block),
+                GuiMessage::SetState(state) => self.state = state,
+                GuiMessage::StartStopwatch(tag) => self.database.stopwatch().start(tag)?,
+                GuiMessage::StopStopwatch => self.database.stopwatch().stop()?,
+            }
+            Ok(())
+        })();
+
+        if let Err(e) = result {
+            warn!("Error updating database: {e:#}");
+        }
     }
 }
 

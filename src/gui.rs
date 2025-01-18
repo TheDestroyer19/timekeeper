@@ -4,9 +4,20 @@ use eframe::epaint::Color32;
 use egui_extras::DatePickerButton;
 use tracing::info;
 
-use crate::database::Tag;
+use crate::database::{Database, Tag};
+// use crate::error::ReportAndContinue;
 use crate::history::{DayBlock, GoalState, History};
-use crate::{settings::Settings, database::Block, stopwatch::StopWatch};
+use crate::{settings::Settings, database::Block};
+
+#[must_use]
+pub enum GuiMessage {
+    None,
+    ChangedBlockTag(Block),
+    DeletedBlock(Block),
+    SetState(GuiState),
+    StartStopwatch(Option<Tag>),
+    StopStopwatch
+}
 
 #[derive(serde::Deserialize, serde::Serialize, Eq, Default)]
 pub enum GuiState {
@@ -34,50 +45,38 @@ impl GuiState {
 
     pub(crate) fn draw_screen(
         &mut self,
-        stopwatch: &mut StopWatch,
-        history: &mut History,
+        database: &Database,
         settings: &mut Settings,
         ui: &mut egui::Ui,
-    ) {
+    ) -> anyhow::Result<GuiMessage> {
+        let mut history = History::new(database);
+        let tags = database.tags().all()?;
+
         let message = match self {
-            GuiState::Today => draw_today(stopwatch, history, settings, ui),
-            GuiState::ThisWeek => draw_this_week(stopwatch, settings, history, ui),
+            GuiState::Today => draw_today(database, settings, ui)?,
+            GuiState::ThisWeek => draw_this_week(settings, &tags, &mut history, ui),
             GuiState::History(datetime) => {
-                draw_history(*datetime, stopwatch, history, settings, ui)
+                draw_history(*datetime, &tags, &mut history, settings, ui)
             }
             GuiState::Settings => draw_settings(settings, ui),
         };
 
-        match message {
-            GuiMessage::None => (),
-            GuiMessage::ChangedBlockTag(block) => stopwatch.update_tag(block),
-            GuiMessage::DeletedBlock(block) => history.delete_block(block),
-            GuiMessage::SetState(state) => *self = state,
-        }
+        Ok(message)
     }
 }
 
-#[must_use]
-enum GuiMessage {
-    None,
-    ChangedBlockTag(Block),
-    DeletedBlock(Block),
-    SetState(GuiState),
-}
-
 pub(crate) fn draw_goals(
-    stopwatch: &mut StopWatch,
-    history: &mut History,
+    is_running: bool,
+    history: &mut History<'_>,
     settings: &Settings,
     ui: &mut egui::Ui,
 ) {
     let daily = history.remaining_daily_goal(settings);
     let weekly = history.remaining_weekly_goal(settings);
-    let running = stopwatch.current().is_some();
 
     draw_goal(
         "Daily goal",
-        running,
+        is_running,
         daily,
         settings.daily_goal,
         settings,
@@ -85,7 +84,7 @@ pub(crate) fn draw_goals(
     );
     draw_goal(
         "Weekly goal",
-        running,
+        is_running,
         weekly,
         settings.weekly_goal,
         settings,
@@ -125,30 +124,33 @@ pub(crate) fn draw_goal(
 }
 
 pub(crate) fn draw_stopwatch(
-    stopwatch: &mut StopWatch,
-    history: &mut History,
+    current: Option<Block>,
+    mut history: History<'_>,
     settings: &Settings,
     ui: &mut egui::Ui,
-) {
+) -> GuiMessage {
     ui.with_layout(
         egui::Layout::top_down_justified(egui::Align::Center),
         |ui| {
-            let current = stopwatch.current();
 
-            draw_goals(stopwatch, history, settings, ui);
+            draw_goals(current.is_some(), &mut history, settings, ui);
 
             if let Some(current) = current {
                 let text = format!("{}\tStop", fmt_duration(current.duration()));
                 let button =
                     egui::Button::new(RichText::new(text).heading()).fill(Color32::DARK_GREEN);
                 if ui.add(button).clicked() {
-                    stopwatch.stop();
+                    GuiMessage::StopStopwatch
+                } else {
+                    GuiMessage::None
                 }
             } else if ui.button(RichText::new("Start").heading()).clicked() {
-                stopwatch.start();
+                GuiMessage::StartStopwatch(None)
+            } else {
+                GuiMessage::None
             }
         },
-    );
+    ).inner
 }
 
 pub fn fmt_duration(mut duration: Duration) -> String {
@@ -167,12 +169,12 @@ pub fn fmt_duration(mut duration: Duration) -> String {
 }
 
 fn draw_today(
-    stopwatch: &mut StopWatch,
-    history: &mut History,
+    database: &Database,
     settings: &Settings,
     ui: &mut egui::Ui,
-) -> GuiMessage {
+) -> anyhow::Result<GuiMessage> {
     let now = Local::now();
+    let history = History::new(database);
 
     let (total, blocks) = history.blocks_in_day(now);
 
@@ -181,7 +183,7 @@ fn draw_today(
         ui.label(RichText::new(fmt_duration(total)).heading());
     });
 
-    draw_block_table(blocks, &stopwatch.all_tags(), settings, ui)
+    Ok(draw_block_table(blocks, &database.tags().all()?, settings, ui))
 }
 
 fn draw_block_table(
@@ -248,24 +250,23 @@ fn draw_block_table(
 }
 
 fn draw_this_week(
-    stopwatch: &mut StopWatch,
     settings: &Settings,
-    history: &mut History,
+    tags: &[Tag],
+    history: &mut History<'_>,
     ui: &mut egui::Ui,
 ) -> GuiMessage {
     let today = Local::now();
-    draw_week(today, settings, stopwatch, history, ui)
+    draw_week(today, tags, settings, history, ui)
 }
 
 fn draw_week(
     day: chrono::DateTime<Local>,
+    tags: &[Tag],
     settings: &Settings,
-    stopwatch: &mut StopWatch,
-    history: &mut History,
+    history: &mut History<'_>,
     ui: &mut egui::Ui,
 ) -> GuiMessage {
     let mut message = GuiMessage::None;
-    let tags = &stopwatch.all_tags();
 
     let (total, blocks) = history.blocks_in_week(day, settings);
 
@@ -294,8 +295,8 @@ fn draw_week(
 
 fn draw_history(
     date: DateTime<Local>,
-    stopwatch: &mut StopWatch,
-    history: &mut History,
+    tags: &[Tag],
+    history: &mut History<'_>,
     settings: &Settings,
     ui: &mut egui::Ui,
 ) -> GuiMessage {
@@ -337,7 +338,7 @@ fn draw_history(
 
     ui.separator();
 
-    draw_week(start_of_week, settings, stopwatch, history, ui)
+    draw_week(start_of_week, tags, settings, history, ui)
 }
 
 fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {

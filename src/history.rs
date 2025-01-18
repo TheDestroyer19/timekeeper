@@ -27,19 +27,17 @@ impl Default for DayBlock {
     }
 }
 
-pub struct History {
-    database: Database,
+pub struct History<'a> {
+    database: &'a Database,
 }
 
-impl Default for History {
-    fn default() -> Self {
+impl<'a> History<'a> {
+    pub fn new(database: &'a Database) -> Self {
         Self {
-            database: Database::new().unwrap(),
+            database
         }
     }
-}
 
-impl History {
     pub fn delete_block(&mut self, block: Block) {
         if let Err(e) = self.database.blocks().delete(block) {
             tracing::warn!("{:#}", e);
