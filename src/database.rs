@@ -215,29 +215,29 @@ impl Blocks<'_> {
 }
 
 pub struct Tags<'a> {
-    conn: &'a Connection
+    conn: &'a Connection,
 }
 
 impl Tags<'_> {
     pub fn all(&self) -> Result<Vec<Tag>, anyhow::Error> {
         self.conn
-        .prepare(
-            "
+            .prepare(
+                "
             SELECT
             id, name
             FROM tags
             WHERE to_delete != 'Y'",
-        )
-        .context("Preparing to get all tags")?
-        .query_map([], |row| {
-            Ok(Tag {
-                id: row.get(0)?,
-               name: row.get(1)?,
+            )
+            .context("Preparing to get all tags")?
+            .query_map([], |row| {
+                Ok(Tag {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                })
             })
-        })
-        .context("Trying to get all tags")?
-        .map(|r| r.context("Trying to map row to Tag struct"))
-        .collect()
+            .context("Trying to get all tags")?
+            .map(|r| r.context("Trying to map row to Tag struct"))
+            .collect()
     }
 
     // pub fn create(&self, name: &str) -> anyhow::Result<()> {

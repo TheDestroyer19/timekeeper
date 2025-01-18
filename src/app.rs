@@ -27,21 +27,24 @@ impl eframe::App for TimeKeeperApp {
             self.state.draw_tabs(ui);
         });
 
-        let message  = egui::TopBottomPanel::bottom("stopwatch").show(ctx, |ui| {
-            draw_stopwatch(current, History::new(&self.database), &self.settings, ui)
-        }).inner;
+        let message = egui::TopBottomPanel::bottom("stopwatch")
+            .show(ctx, |ui| {
+                draw_stopwatch(current, History::new(&self.database), &self.settings, ui)
+            })
+            .inner;
         self.handle_message(message);
 
-
-        let message = egui::CentralPanel::default().show(ctx, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                self.state.draw_screen(
-                    &self.database,
-                    &mut self.settings,
-                    ui,
-                )
-            }).inner
-        }).inner.unwrap();
+        let message = egui::CentralPanel::default()
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical()
+                    .show(ui, |ui| {
+                        self.state
+                            .draw_screen(&self.database, &mut self.settings, ui)
+                    })
+                    .inner
+            })
+            .inner
+            .unwrap();
         self.handle_message(message);
     }
 
@@ -63,7 +66,10 @@ impl TimeKeeperApp {
         // load previous state if any
         if let Some(storage) = cc.storage {
             settings = Settings::deserailize(storage.get_string(SETTINGS_KEY));
-            if let Some(value) = storage.get_string(STATE_KEY).and_then(|s| serde_json::from_str(&s).ok()) {
+            if let Some(value) = storage
+                .get_string(STATE_KEY)
+                .and_then(|s| serde_json::from_str(&s).ok())
+            {
                 state = value;
             } else {
                 warn!("Failed to read gui state");

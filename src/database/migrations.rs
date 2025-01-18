@@ -17,26 +17,33 @@ pub fn migrate(connection: &mut Connection) -> anyhow::Result<()> {
 
 fn database_version(conn: &Connection) -> anyhow::Result<usize> {
     //first check if we have a APP_INFO table, which contains the database version (since version 2)
-    let app_info_exists = conn.query_row(
-        r#"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='app_info'"#,
-        [],
-        |row| row.get::<usize, usize>(0)
-    ).context("checking for existance of `app_info` table")? == 1;
+    let app_info_exists = conn
+        .query_row(
+            r#"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='app_info'"#,
+            [],
+            |row| row.get::<usize, usize>(0),
+        )
+        .context("checking for existance of `app_info` table")?
+        == 1;
 
     if app_info_exists {
         //try to get version from app_info table
         conn.query_row(
             r#"SELECT value FROM app_info WHERE key='version'"#,
             [],
-            |row| row.get::<usize, usize>(0)
-        ).context("error reading version from app_info table")
+            |row| row.get::<usize, usize>(0),
+        )
+        .context("error reading version from app_info table")
     } else {
         //check for version 0 (empty database)
-        let time_blocks_exists = conn.query_row(
-            r#"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='time_blocks'"#,
-            [],
-            |row| row.get::<usize, usize>(0)
-        ).context("checking for existance of `time_blocks` table")? == 1;
+        let time_blocks_exists = conn
+            .query_row(
+                r#"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='time_blocks'"#,
+                [],
+                |row| row.get::<usize, usize>(0),
+            )
+            .context("checking for existance of `time_blocks` table")?
+            == 1;
 
         if time_blocks_exists {
             Ok(1)
@@ -44,7 +51,6 @@ fn database_version(conn: &Connection) -> anyhow::Result<usize> {
             Ok(0)
         }
     }
-
 }
 
 fn v0_to_v1(conn: &mut Connection) -> anyhow::Result<()> {
@@ -57,7 +63,7 @@ fn v0_to_v1(conn: &mut Connection) -> anyhow::Result<()> {
             "protected"	TEXT CHECK("protected" = 'Y'),
                  PRIMARY KEY("id")
     );"#,
-    [], // empty list of parameters.
+        [], // empty list of parameters.
     )
     .context("Failed to initailize tags table")?;
     tx.execute(
@@ -71,7 +77,7 @@ fn v0_to_v1(conn: &mut Connection) -> anyhow::Result<()> {
                  FOREIGN KEY("tag") REFERENCES "tags"("id"),
                  PRIMARY KEY("id")
     );"#,
-    [],
+        [],
     )
     .context("Failed to initailize time_blocks table")?;
 
@@ -90,18 +96,23 @@ fn v1_to_v2(conn: &mut Connection) -> anyhow::Result<()> {
         "value" NOT NULL,
         PRIMARY KEY("id")
     );"#,
-        []
-    ).context("failed to create app_info table")?;
+        [],
+    )
+    .context("failed to create app_info table")?;
 
     tx.execute(r#"ALTER TABLE tags DROP protected"#, [])
         .context("Failed to remove `protected` column from tags table")?;
-    tx.execute(r#"ALTER TABLE tags ADD to_delete CHECK("to_delete" = 'Y')"#, [])
-        .context("Failed to add `to_delete` column to tags table")?;
+    tx.execute(
+        r#"ALTER TABLE tags ADD to_delete CHECK("to_delete" = 'Y')"#,
+        [],
+    )
+    .context("Failed to add `to_delete` column to tags table")?;
 
     tx.execute(
         r#"INSERT INTO app_info (key, value) VALUES (?1, ?2)"#,
-                 rusqlite::params!["version", 2]
-    ).context("failed to set database version")?;
+        rusqlite::params!["version", 2],
+    )
+    .context("failed to set database version")?;
 
     tx.commit()?;
 

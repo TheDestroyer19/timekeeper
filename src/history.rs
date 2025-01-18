@@ -1,8 +1,8 @@
 use chrono::{DateTime, Datelike, Days, Duration, Local, Timelike};
 
 use crate::{
-    settings::Settings,
     database::{Block, Database},
+    settings::Settings,
 };
 
 pub enum GoalState {
@@ -33,9 +33,7 @@ pub struct History<'a> {
 
 impl<'a> History<'a> {
     pub fn new(database: &'a Database) -> Self {
-        Self {
-            database
-        }
+        Self { database }
     }
 
     pub fn delete_block(&mut self, block: Block) {

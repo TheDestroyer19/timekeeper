@@ -7,7 +7,7 @@ use tracing::info;
 use crate::database::{Database, Tag};
 // use crate::error::ReportAndContinue;
 use crate::history::{DayBlock, GoalState, History};
-use crate::{settings::Settings, database::Block};
+use crate::{database::Block, settings::Settings};
 
 #[must_use]
 pub enum GuiMessage {
@@ -16,7 +16,7 @@ pub enum GuiMessage {
     DeletedBlock(Block),
     SetState(GuiState),
     StartStopwatch(Option<Tag>),
-    StopStopwatch
+    StopStopwatch,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Eq, Default)]
@@ -132,7 +132,6 @@ pub(crate) fn draw_stopwatch(
     ui.with_layout(
         egui::Layout::top_down_justified(egui::Align::Center),
         |ui| {
-
             draw_goals(current.is_some(), &mut history, settings, ui);
 
             if let Some(current) = current {
@@ -150,7 +149,8 @@ pub(crate) fn draw_stopwatch(
                 GuiMessage::None
             }
         },
-    ).inner
+    )
+    .inner
 }
 
 pub fn fmt_duration(mut duration: Duration) -> String {
@@ -183,7 +183,12 @@ fn draw_today(
         ui.label(RichText::new(fmt_duration(total)).heading());
     });
 
-    Ok(draw_block_table(blocks, &database.tags().all()?, settings, ui))
+    Ok(draw_block_table(
+        blocks,
+        &database.tags().all()?,
+        settings,
+        ui,
+    ))
 }
 
 fn draw_block_table(
