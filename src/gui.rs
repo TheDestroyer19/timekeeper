@@ -17,6 +17,9 @@ pub enum GuiMessage {
     SetState(GuiState),
     StartStopwatch(Option<Tag>),
     StopStopwatch,
+    CreateTag(String),
+    DeleteTag(Tag),
+    RenameTag(Tag),
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Eq, Default)]
@@ -25,6 +28,7 @@ pub enum GuiState {
     Today,
     ThisWeek,
     History(DateTime<Local>),
+    Tags(String),
     Settings,
 }
 impl PartialEq for GuiState {
@@ -39,6 +43,7 @@ impl GuiState {
             ui.selectable_value(self, GuiState::Today, "Today");
             ui.selectable_value(self, GuiState::ThisWeek, "This Week");
             ui.selectable_value(self, GuiState::History(Local::now()), "History");
+            ui.selectable_value(self, GuiState::Tags("".to_string()), "Tags");
             ui.selectable_value(self, GuiState::Settings, "Settings");
         });
     }
@@ -50,7 +55,7 @@ impl GuiState {
         ui: &mut egui::Ui,
     ) -> anyhow::Result<GuiMessage> {
         let mut history = History::new(database);
-        let tags = database.tags().all()?;
+        let mut tags = database.tags().all()?;
 
         let message = match self {
             GuiState::Today => draw_today(database, settings, ui)?,
@@ -58,6 +63,7 @@ impl GuiState {
             GuiState::History(datetime) => {
                 draw_history(*datetime, &tags, &mut history, settings, ui)
             }
+            GuiState::Tags(new_name) => draw_tags(&mut tags, new_name, ui),
             GuiState::Settings => draw_settings(settings, ui),
         };
 
@@ -347,6 +353,33 @@ fn draw_history(
     ui.separator();
 
     draw_week(start_of_week, tags, settings, history, ui)
+}
+
+fn draw_tags(tags: &mut [Tag], new_name: &mut String, ui: &mut egui::Ui) -> GuiMessage {
+    let mut message = GuiMessage::None;
+    egui::Grid::new("tags")
+        .num_columns(2)
+        .striped(true)
+        .show(ui, |ui| {
+            for tag in tags {
+                ui.label(&tag.name);
+                if ui.button("X").clicked() {
+                    message = GuiMessage::DeleteTag(tag.clone())
+                }
+                ui.end_row();
+            }
+        });
+
+    ui.separator();
+
+    ui.horizontal(|ui| {
+        ui.text_edit_singleline(new_name);
+        if ui.button("Create").clicked() {
+            message = GuiMessage::CreateTag(new_name.clone());
+        }
+    });
+
+    message
 }
 
 fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {

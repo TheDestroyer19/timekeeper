@@ -8,7 +8,7 @@ use crate::APP_NAME;
 mod migrations;
 
 /// A block of time
-#[derive(serde::Deserialize, serde::Serialize, Clone)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct Block {
     id: usize,
     pub start: DateTime<Local>,
@@ -27,7 +27,7 @@ impl Block {
     }
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Clone)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct Tag {
     id: usize,
     pub name: String,
@@ -51,7 +51,11 @@ impl Database {
 
         migrations::migrate(&mut conn)?;
 
-        Ok(Self { conn })
+        //perform maintainence on database
+        let database = Self { conn };
+        database.tags().maintain()?;
+
+        Ok(database)
     }
 
     pub fn stopwatch(&self) -> StopWatch<'_> {
@@ -226,7 +230,7 @@ impl Tags<'_> {
             SELECT
             id, name
             FROM tags
-            WHERE to_delete != 'Y'",
+            WHERE to_delete IS NULL",
             )
             .context("Preparing to get all tags")?
             .query_map([], |row| {
@@ -240,22 +244,73 @@ impl Tags<'_> {
             .collect()
     }
 
-    // pub fn create(&self, name: &str) -> anyhow::Result<()> {
-    //     todo!()
-    // }
-    //
-    // pub fn rename(&self, tag: Tag, new_name: &str) -> anyhow::Result<()> {
-    //     todo!()
-    // }
-    //
-    // pub fn delete(&self, tag: Tag) -> anyhow::Result<()> {
-    //     todo!()
-    // }
-    //
-    // /// Remove tags that have been marked for deletion and are no longer found in tags
-    // pub fn maintain(&self) -> anyhow::Result<()> {
-    //     todo!()
-    // }
+    pub fn create(&self, name: &str) -> anyhow::Result<()> {
+        info!("Creating tag {name}");
+        self.conn
+            .execute(
+                "
+                INSERT INTO tags (name)
+                VALUES (?)",
+                [name],
+            )
+            .map(|_| ())
+            .context("Failed to insert tag into database")
+    }
+
+    pub fn rename(&self, tag: Tag) -> anyhow::Result<()> {
+        info!("Renaming a tag to {}", tag.name);
+        self.conn
+            .execute(
+                "UPDATE tags SET name=?2 WHERE id=?1",
+                rusqlite::params![tag.id, tag.name],
+            )
+            .map(|_| ())
+            .context("Failed to rename a tag")
+    }
+
+    pub fn delete(&self, tag: Tag) -> anyhow::Result<()> {
+        info!("Deleting tag {}", tag.name);
+        self.conn
+            .execute("UPDATE tags SET to_delete = 'Y' WHERE id = ?1", [tag.id])
+            .with_context(|| format!("Failed to delete tag {}", tag.name))
+            .map(|_| ())
+    }
+
+    /// Remove tags that have been marked for deletion and are no longer found in tags
+    pub fn maintain(&self) -> anyhow::Result<()> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT
+                    t.id, t.name
+                FROM tags t
+                LEFT JOIN time_blocks b ON t.id = b.tag
+                WHERE to_delete = 'Y'
+                    AND b.id IS NULL",
+            )
+            .context("Preparing to get deleted tags")?;
+        let deleted_tags = stmt
+            .query_map([], |row| {
+                Ok(Tag {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                })
+            })
+            .context("Trying to get deleted tags")?
+            .map(|r| r.context("Failed to map row to Tag struct"));
+
+        for tag in deleted_tags {
+            let tag = tag?;
+            self.conn
+                .execute(
+                    "DELETE FROM tags WHERE id = ?1 AND to_delete IS NOT NULL",
+                    [tag.id],
+                )
+                .with_context(|| format!("Failed to delete tag {}", tag.name))?;
+        }
+
+        Ok(())
+    }
 }
 
 fn new_disk_connection() -> Result<Connection, anyhow::Error> {

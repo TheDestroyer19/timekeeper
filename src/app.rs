@@ -100,6 +100,9 @@ impl TimeKeeperApp {
                 GuiMessage::SetState(state) => self.state = state,
                 GuiMessage::StartStopwatch(tag) => self.database.stopwatch().start(tag)?,
                 GuiMessage::StopStopwatch => self.database.stopwatch().stop()?,
+                GuiMessage::CreateTag(name) => self.database.tags().create(&name)?,
+                GuiMessage::DeleteTag(tag) => self.database.tags().delete(tag)?,
+                GuiMessage::RenameTag(tag) => self.database.tags().rename(tag)?,
             }
             Ok(())
         })();
