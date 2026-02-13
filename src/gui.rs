@@ -21,6 +21,13 @@ pub enum GuiMessage {
     DeleteTag(Tag),
     RenameTag(Tag),
 }
+impl std::ops::BitOrAssign for GuiMessage {
+    fn bitor_assign(&mut self, rhs: Self) {
+        if matches!(self, GuiMessage::None) {
+            *self = rhs;
+        }
+    }
+}
 
 #[derive(serde::Deserialize, serde::Serialize, Eq, Default)]
 pub enum GuiState {
@@ -28,7 +35,7 @@ pub enum GuiState {
     Today,
     ThisWeek,
     History(DateTime<Local>),
-    Tags(String),
+    Tags(TagsGuiData),
     Settings,
 }
 impl PartialEq for GuiState {
@@ -42,8 +49,12 @@ impl GuiState {
         ui.horizontal(|ui| {
             ui.selectable_value(self, GuiState::Today, "Today");
             ui.selectable_value(self, GuiState::ThisWeek, "This Week");
-            ui.selectable_value(self, GuiState::History(Local::now()), "History");
-            ui.selectable_value(self, GuiState::Tags("".to_string()), "Tags");
+            if ui.selectable_label(matches!(self, GuiState::History(_)), "History").clicked() {
+                *self = GuiState::History(Local::now());
+            }
+            if ui.selectable_label(matches!(self, GuiState::Tags{ .. }), "Tags").clicked() {
+                *self = GuiState::Tags(TagsGuiData::default());
+            }
             ui.selectable_value(self, GuiState::Settings, "Settings");
         });
     }
@@ -63,7 +74,7 @@ impl GuiState {
             GuiState::History(datetime) => {
                 draw_history(*datetime, &tags, &mut history, settings, ui)
             }
-            GuiState::Tags(new_name) => draw_tags(&mut tags, new_name, ui),
+            GuiState::Tags(data) => data.draw(&mut tags, ui),
             GuiState::Settings => draw_settings(settings, ui),
         };
 
@@ -355,32 +366,68 @@ fn draw_history(
     draw_week(start_of_week, tags, settings, history, ui)
 }
 
-fn draw_tags(tags: &mut [Tag], new_name: &mut String, ui: &mut egui::Ui) -> GuiMessage {
-    let mut message = GuiMessage::None;
-    egui::Grid::new("tags")
-        .num_columns(2)
-        .striped(true)
-        .show(ui, |ui| {
-            for tag in tags {
-                ui.label(&tag.name);
-                if ui.button("X").clicked() {
-                    message = GuiMessage::DeleteTag(tag.clone())
-                }
-                ui.end_row();
+#[derive(serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub struct TagsGuiData {
+    new_name: String,
+    edit_tag: Option<Tag>,
+    focus_edit: bool,
+}
+impl Default for TagsGuiData {
+    fn default() -> Self {
+        TagsGuiData { new_name: String::new(), edit_tag: None, focus_edit: false }
+    }
+}
+
+impl TagsGuiData {
+    fn draw(&mut self, tags: &[Tag], ui: &mut egui::Ui) -> GuiMessage {
+        let mut message = GuiMessage::None;
+        for tag in tags {
+            message |= self.draw_row(tag, ui)
+        }
+
+        ui.separator();
+
+        ui.horizontal(|ui| {
+            ui.text_edit_singleline(&mut self.new_name);
+            if ui.button("Create").clicked() {
+                message |= GuiMessage::CreateTag(std::mem::take(&mut self.new_name));
             }
         });
 
-    ui.separator();
+        message
+    }
 
-    ui.horizontal(|ui| {
-        ui.text_edit_singleline(new_name);
-        if ui.button("Create").clicked() {
-            message = GuiMessage::CreateTag(new_name.clone());
-        }
-    });
+    fn draw_row(&mut self, tag: &Tag, ui: &mut egui::Ui) -> GuiMessage {
+        let mut message = GuiMessage::None;
+        ui.horizontal(|ui| {
+            if Some(&*tag) == self.edit_tag.as_ref() {
+                let response = {
+                    let tag = self.edit_tag.as_mut().expect("Already checked if this option is Some");
+                    ui.text_edit_singleline(&mut tag.name)
+                };
+                if self.focus_edit {
+                    response.request_focus();
+                    self.focus_edit = false;
+                }
+                if response.lost_focus() {
+                    message |= GuiMessage::RenameTag(self.edit_tag.take().expect("Already checked if this option is Some"));
+                }
+            } else {
+                ui.label(&tag.name);
+                if ui.button("✏").clicked() {
+                    self.edit_tag = Some(tag.clone());
+                    self.focus_edit = true;
+                } else if ui.button("X").clicked() {
+                    message |= GuiMessage::DeleteTag(tag.clone());
+                }
+            }
+            ui.end_row();
+        });
 
-    message
+        message
+    }
 }
+
 
 fn draw_settings(settings: &mut Settings, ui: &mut egui::Ui) -> GuiMessage {
     let now = Local::now();

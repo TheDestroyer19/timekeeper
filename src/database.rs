@@ -27,7 +27,7 @@ impl Block {
     }
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, Eq)]
 pub struct Tag {
     id: usize,
     pub name: String,
@@ -90,7 +90,7 @@ impl StopWatch<'_> {
             running: true,
         };
 
-        let tag = block.tag.as_ref().map(|t| t.id);
+        let tag_id = block.tag.as_ref().map(|t| t.id);
         let running = if block.running { Some("Y") } else { None };
 
         self.conn
@@ -98,12 +98,16 @@ impl StopWatch<'_> {
                 "
             INSERT INTO time_blocks (start, end, tag, running)
             VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![block.start, block.end, tag, running],
+                rusqlite::params![block.start, block.end, tag_id, running],
             )
             .map(|_| ())
             .context("Trying to insert block into database")?;
 
-        info!("Started stopwatch at {:?}", self.now);
+        if let Some(tag) = &block.tag {
+            info!("Started block tagged `{}`", tag.name);
+        } else {
+            info!("Started untagged block");
+        }
         Ok(())
     }
 
@@ -116,7 +120,7 @@ impl StopWatch<'_> {
             )
             .map(|_| ())
             .context("Trying to stop running blocks")?;
-        info!("Stopped stopwatch at {:?}", self.now);
+        info!("Stopped");
         Ok(())
     }
 
