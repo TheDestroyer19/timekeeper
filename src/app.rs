@@ -4,6 +4,7 @@ use chrono::Duration;
 use eframe::egui;
 use tracing::warn;
 
+use crate::{Args, Commands};
 use crate::database::Database;
 use crate::gui::{draw_stopwatch, GuiMessage, GuiState};
 use crate::history::History;
@@ -55,13 +56,13 @@ impl eframe::App for TimeKeeperApp {
 }
 
 impl TimeKeeperApp {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // Customize egui here with cc.egui_ctx.set_fonts and cc.egui_ctx.set_visuals.
-        // Restore app state using cc.storage (requires the "persistence" feature).
-        // Use the cc.gl (a glow::Context) to create graphics shaders and buffers that you can use
-        // for e.g. egui::PaintCallback.
+    pub fn new(cc: &eframe::CreationContext<'_>, args: Args) -> Self {
+        let Args { command } = args;
+
+        // initialize internal structures
         let settings: Settings;
         let state: GuiState;
+        let database = Database::new().unwrap();
 
         // load previous state if any
         if let Some(storage) = cc.storage {
@@ -80,6 +81,14 @@ impl TimeKeeperApp {
             state = GuiState::default();
         }
 
+        // handle startup commands
+        match command {
+            Some(Commands::Start) => {
+                database.stopwatch().start(None).unwrap();
+            },
+            None => (),
+        }
+
         //start update thread
         let ctx = cc.egui_ctx.clone();
         thread::spawn(|| bg_timer(ctx));
@@ -87,7 +96,7 @@ impl TimeKeeperApp {
         Self {
             state,
             settings,
-            database: Database::new().unwrap(),
+            database,
         }
     }
 

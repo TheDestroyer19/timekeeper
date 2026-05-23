@@ -6,7 +6,8 @@
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    use timekeeper::APP_NAME;
+    use clap::Parser;
+    use timekeeper::{Args, APP_NAME};
     use tracing::{info, warn};
 
     let subscriber = tracing_subscriber::fmt().finish();
@@ -14,12 +15,15 @@ fn main() {
     let _ = tracing::subscriber::set_global_default(subscriber)
         .map_err(|_e| eprintln!("Unable to set default subscriber"));
 
+    tracing::info!("Reading Args");
+    let args = Args::parse();
+
     tracing::info!("Starting up");
     let native_options = eframe::NativeOptions::default();
     let finish = eframe::run_native(
         APP_NAME,
         native_options,
-        Box::new(|cc| Ok(Box::new(timekeeper::TimeKeeperApp::new(cc)))),
+        Box::new(|cc| Ok(Box::new(timekeeper::TimeKeeperApp::new(cc, args)))),
     );
 
     if let Err(e) = finish {
